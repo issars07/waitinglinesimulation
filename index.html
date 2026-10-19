@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M/M/S Queueing Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #334155;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 24px;
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .section-title {
+            color: #1e3a8a;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        /* Adjusted label styling for better flexibility */
+        .input-group label {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 4px;
+            display: block; /* Default for labels in input-group */
+        }
+        /* Specific styling for labels within flex containers (like checkboxes) */
+        /* This rule is now less critical for the problem checkboxes as they no longer have .input-group */
+        .input-group.flex.items-center label {
+            display: inline-flex; /* Override to inline-flex for checkboxes */
+            align-items: center; /* Vertically align text with checkbox */
+            height: auto; /* Remove fixed height for these labels */
+            margin-bottom: 0; /* Ensure no extra margin below */
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background-color: #f8fafc;
+            color: #334155;
+        }
+        /* Ensure text inputs behave as blocks */
+        .input-group input:not([type="checkbox"]) {
+            display: block;
+        }
+        button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+        button:hover {
+            transform: translateY(-1px);
+        }
+        #startButton {
+            background-color: #22c55e;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.3), 0 2px 4px -1px rgba(34, 197, 94, 0.08);
+        }
+        #startButton:hover {
+            background-color: #16a34a;
+        }
+        #stopButton {
+            background-color: #ef4444;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3), 0 2px 4px -1px rgba(239, 68, 68, 0.08);
+        }
+        #stopButton:hover {
+            background-color: #dc2626;
+        }
+        #resetButton {
+            background-color: #64748b;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(100, 116, 139, 0.3), 0 2px 4px -1px rgba(100, 116, 139, 0.08);
+        }
+        #resetButton:hover {
+            background-color: #475569;
+        }
+        .metric-box {
+            background-color: #e0f2fe;
+            border: 1px solid #90cdf4;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+        .metric-label {
+            font-weight: 600;
+            color: #1e40af;
+        }
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1c52b2;
+        }
+        #simulationCanvas {
+            background-color: #e2e8f0;
+            border: 1px solid #94a3b8;
+            border-radius: 8px;
+            width: 100%;
+            height: 450px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+        }
+
+        /* Visualization specific styles */
+        .system-border {
+            fill: none;
+            stroke: #64748b;
+            stroke-width: 4px;
+            stroke-dasharray: 5 5;
+            border-radius: 10px;
+        }
+        .door {
+            fill: #94a3b8;
+            stroke: #475569;
+            stroke-width: 2px;
+            border-radius: 5px;
+        }
+        .server-item {
+            fill: #fcd34d;
+            stroke: #d97706;
+            stroke-width: 2px;
+            rx: 10px; ry: 10px;
+        }
+        .server-text {
+            font-size: 18px;
+            text-anchor: middle;
+            fill: #333;
+            font-weight: bold;
+        }
+        .queue-line {
+            stroke: #94a3b8;
+            stroke-width: 2px;
+        }
+        .queue-text {
+            font-size: 18px;
+            text-anchor: middle;
+            fill: #333;
+            font-weight: bold;
+        }
+        .customer-circle {
+            fill: #60a5fa;
+            stroke: #2563eb;
+            stroke-width: 1px;
+            r: 20;
+        }
+        .customer-text {
+            font-size: 14px;
+            text-anchor: middle;
+            fill: white;
+            pointer-events: none;
+        }
+        .customer-in-service {
+            fill: #f97316;
+            stroke: #ea580c;
+        }
+
+        /* Animations for customer flow */
+        .customer-entering-path, .customer-moving-to-server, .customer-leaving-path {
+            animation-fill-mode: forwards; /* Keep the end state of the animation */
+        }
+
+        @keyframes enterPath {
+            from {
+                transform: translate(0, 0);
+                opacity: 0;
+            }
+            to {
+                transform: translate(
+                    calc(var(--target-x) - var(--initial-x)),
+                    calc(var(--target-y) - var(--initial-y))
+                );
+                opacity: 1;
+            }
+        }
+        @keyframes moveToService {
+            from { transform: translate(0, 0); }
+            to { transform: translate(var(--target-x), var(--target-y)); }
+        }
+        @keyframes leavePath {
+            from { transform: translate(0, 0); opacity: 1; }
+            to { transform: translate(var(--target-x), var(--target-y)); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Control Panel -->
+        <div class="control-panel p-4">
+            <h2 class="section-title">Simulation Controls</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="input-group">
+                    <label for="arrivalRate">Average Arrival Rate (λ, customers/min):</label>
+                    <input type="number" id="arrivalRate" value="24" min="0.1" step="0.1" class="rounded-lg">
+                </div>
+                <div class="input-group">
+                    <label for="serviceRate">Average Service Rate (μ, customers/min/server):</label>
+                    <input type="number" id="serviceRate" value="30" min="0.1" step="0.1" class="rounded-lg">
+                </div>
+                <div class="input-group">
+                    <label for="numServers">Number of Servers (S):</label>
+                    <input type="number" id="numServers" value="1" min="1" step="1" class="rounded-lg">
+                </div>
+                <div class="input-group">
+                    <label for="simSpeed">Simulation Speed (ms per sim-second):</label>
+                    <input type="number" id="simSpeed" value="10" min="10" step="10" class="rounded-lg">
+                </div>
+                <!-- Applied the same fix here -->
+                <div class="flex items-center col-span-1 md:col-span-2 mt-2"> <!-- Removed input-group class -->
+                    <input type="checkbox" id="noMaxCustomers" class="mr-0.5 rounded" checked>
+                    <label for="noMaxCustomers" class="font-semibold text-gray-700 mb-0">No Maximum Customers (Run Indefinitely)</label>
+                </div>
+                <div class="input-group" id="maxCustomersContainer" style="display: none;">
+                    <label for="maxCustomers">Max Customers to Serve:</label>
+                    <input type="number" id="maxCustomers" value="50" min="1" step="1" class="rounded-lg">
+                </div>
+            </div>
+
+            <div class="input-group mb-6">
+                <p class="font-semibold text-gray-700 mb-2">Distribution Types (M/M/S uses Exponential):</p>
+                <div class="flex flex-wrap gap-4">
+                    <div class="flex items-center">
+                        <input type="radio" id="distExp" name="distribution" value="exponential" checked class="mr-2">
+                        <label for="distExp">Exponential (M/M/S)</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="radio" id="distFixed" name="distribution" value="fixed" class="mr-2">
+                        <label for="distFixed">Fixed</label>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mt-2">
+                    For M/M/S, arrivals follow a Poisson distribution, and both inter-arrival and service times are exponentially distributed.
+                    Other distributions are for demonstration purposes and deviate from a strict M/M/S.
+                </p>
+            </div>
+
+            <!-- Consolidated Checkbox Group for better alignment -->
+            <div class="flex flex-col gap-2 mb-6">
+                <div class="flex items-center"> <!-- Removed input-group class -->
+                    <input type="checkbox" id="startWithPrefill" class="mr-0.5 rounded" checked>
+                    <label for="startWithPrefill" class="font-semibold text-gray-700 mb-0">Start with Pre-filled System (M/M/S only)</label>
+                </div>
+
+                <div class="flex items-center"> <!-- Removed input-group class -->
+                    <input type="checkbox" id="showLittlesLawCheck" class="mr-0.5 rounded">
+                    <label for="showLittlesLawCheck" class="font-semibold text-gray-700 mb-0">Show Little's Law Check</label>
+                </div>
+
+                <div class="flex items-center"> <!-- Removed input-group class -->
+                    <input type="checkbox" id="showObservedRatesCheck" class="mr-0.5 rounded">
+                    <label for="showObservedRatesCheck" class="font-semibold text-gray-700 mb-0">Show Observed Rates</label>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                <button id="startButton" class="flex-1">START SIMULATION</button>
+                <button id="stopButton" class="flex-1" disabled>STOP SIMULATION</button>
+                <button id="resetButton" class="flex-1">RESET</button>
+            </div>
+        </div>
+
+        <!-- Metrics Display -->
+        <div class="metrics-display p-4">
+            <h2 class="section-title">Real-time Metrics</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="metric-box">
+                    <div class="metric-label">Current Time (min):</div>
+                    <div id="currentTime" class="metric-value">0.00</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Customers in System:</div>
+                    <div id="customersInSystem" class="metric-value">0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Customers in Queue:</div>
+                    <div id="customersInQueue" class="metric-value">0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Customers Being Served:</div>
+                    <div id="customersInService" class="metric-value">0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Actual System Utilization:</div>
+                    <div id="systemUtilization" class="metric-value">0.00%</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Customers Served:</div>
+                    <div id="customersServed" class="metric-value">0</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Avg. Wait Time in Queue (Wq, min):</div>
+                    <div id="avgWaitTime" class="metric-value">0.00</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Avg. Time in System (Ws, min):</div>
+                    <div id="avgTimeInSystem" class="metric-value">0.00</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Avg. Customers in Queue (Lq):</div>
+                    <div id="avgCustomersInQueueDisplay" class="metric-value">0.00</div>
+                </div>
+                 <div class="metric-box">
+                    <div class="metric-label">Avg. Customers in System (Ls):</div>
+                    <div id="avgCustomersInSystemDisplay" class="metric-value">0.00</div>
+                </div>
+                <!-- Hidden by default -->
+                <div class="metric-box" id="observedArrivalRateMetricBox" style="display: none;">
+                    <div class="metric-label">Observed Arrival Rate (λ_obs, cust/min):</div>
+                    <div id="observedArrivalRate" class="metric-value">0.00</div>
+                </div>
+                <!-- Hidden by default -->
+                <div class="metric-box" id="observedServiceRateMetricBox" style="display: none;">
+                    <div class="metric-label">Observed Service Rate (μ_obs, cust/min/server):</div>
+                    <div id="observedServiceRate" class="metric-value">0.00</div>
+                </div>
+                <div class="metric-box" id="littlesLawCheckMetricBox" style="display: none;"> <!-- Hidden by default -->
+                    <div class="metric-label">Little's Law Check (λ_obs * Wq):</div>
+                    <div id="littlesLawCheck" class="metric-value">0.00</div>
+                </div>
+            </div>
+            <div class="mt-6 p-3 bg-blue-100 text-blue-800 rounded-lg text-sm" id="statusMessage">
+                Adjust parameters and click START.
+            </div>
+        </div>
+
+        <!-- Simulation Visualization -->
+        <div class="col-span-1 md:col-span-2 p-4">
+            <h2 class="section-title">Simulation Visualization</h2>
+            <svg id="simulationCanvas" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid meet">
+                <!-- System Border -->
+                <rect x="50" y="50" width="700" height="350" class="system-border"></rect>
+                <text x="400" y="75" font-size="20" text-anchor="middle" fill="#333">Queueing System Boundary</text>
+
+                <!-- Entry Door -->
+                <rect x="40" y="200" width="10" height="50" class="door"></rect>
+                <text x="30" y="225" font-size="16" text-anchor="end" alignment-baseline="middle" fill="#333">Entry</text>
+
+                <!-- Exit Door -->
+                <rect x="750" y="200" width="10" height="50" class="door"></rect>
+                <text x="770" y="225" font-size="16" text-anchor="start" alignment-baseline="middle" fill="#333">Exit</text>
+
+                <!-- Queue Line -->
+                <line x1="130" y1="295" x2="590" y2="295" class="queue-line"></line>
+                <text x="360" y="320" font-size="20" text-anchor="middle" fill="#333">Waiting Line (Queue)</text>
+
+                <!-- Servers will be dynamically drawn here -->
+                <g id="serversGroup"></g>
+                <text x="700" y="100" font-size="20" text-anchor="middle" fill="#333">Servers</text>
+            </svg>
+        </div>
+    </div>
+
+    <script>
+        // Utility Functions for Random Distributions
+        class Distribution {
+            /**
+             * Generates a random time from an exponential distribution.
+             * @param {number} rate - The average rate (e.g., customers/minute).
+             * @returns {number} The generated time. Returns 0 if rate is non-positive.
+             */
+            static exponential(rate) {
+                if (rate <= 0) return 0;
+                return -Math.log(Math.random()) / rate;
+            }
+
+            /**
+             * Generates a fixed time, essentially 1 divided by the rate.
+             * Used for deterministic processes (not standard M/M/S).
+             * @param {number} value - The rate at which events occur (e.g., customers/minute).
+             * @returns {number} The fixed time interval.
+             */
+            static fixed(value) {
+                return 1 / value;
+            }
+
+            /**
+             * Generates next inter-arrival or service time based on chosen distribution type.
+             * Rates are per minute, returns time in minutes.
+             * @param {number} rate - The rate for the distribution.
+             * @param {string} type - The distribution type ('exponential' or 'fixed').
+             * @returns {number} The generated time.
+             */
+            static generateTime(rate, type) {
+                if (type === 'exponential') {
+                    return Distribution.exponential(rate);
+                } else if (type === 'fixed') {
+                    return Distribution.fixed(rate);
+                }
+                return 0; // Default or error case
+            }
+        }
+
+        // Customer Class to hold data and reference to SVG elements
+        class Customer {
+            /**
+             * @param {number} id - Unique identifier for the customer.
+             */
+            constructor(id) { // Removed arrivalTime from constructor
+                this.id = id;
+                this.arrivalTime = null; // Will be set when the ARRIVAL event is processed
+                this.queueEntryTime = null;
+                this.serviceStartTime = null;
+                this.serviceEndTime = null;
+                this.leaveTime = null;
+                this.element = null; // Reference to the SVG circle element
+                this.textElement = null; // Reference to the SVG text element
+                this.isVisualized = false; // Flag to track if customer is currently visually on canvas
+                allCustomerObjects.set(id, this); // Add customer to global map
+            }
+        }
+
+        // Global Simulation State and Parameters
+        let simulationInterval = null; // Holds the setInterval ID for pausing/stopping
+        let currentTime = 0; // Current simulation time in minutes
+        let customerCounter = 0; // Counts total customers created (unique IDs)
+        let newCustomersArrivedCount = 0; // NEW: Counts customers arriving via the arrival stream
+        let eventQueue = []; // Prioritized list of future events, sorted by time: [{time, type, customer, serverId}, ...]
+
+        let customersInQueue = []; // Array of Customer objects currently waiting in line
+        let servers = []; // Array of server objects: {busy: boolean, customer: Customer, busyStartTime: number}
+        let completedCustomers = []; // Array of Customer objects that have left the system
+
+        let allCustomerObjects = new Map(); // Maps customer ID to Customer object for global tracking
+
+        // Metrics for time-weighted averages
+        let totalSystemBusyTime = 0; // Sum of time all servers have been busy
+        let totalCustomersInQueueArea = 0; // Area under Lq(t) curve for average queue length
+        let totalCustomersInSystemArea = 0; // Area under L(t) curve for average system occupancy
+        let totalServiceTimeObserved = 0; // NEW: Total accumulated service time across all customers
+        let lastMetricUpdateTime = 0; // The last time metrics were updated for accumulation calculations
+
+        // Input Parameters (rates are per minute) - Default values
+        let avgArrivalRatePerMin = 24; // λ (lambda) - Default changed to 24
+        let avgServiceRatePerMinPerServer = 30; // μ (mu)
+        let numServers = 1; // S
+        let simSpeedMsPerSec = 10; // Milliseconds per simulation second (visual speed) - Default changed to 10
+        let maxCustomersToServe = 50; // Maximum NEW customers to serve before stopping (if not infinite)
+        let noMaxCustomers = true; // Boolean, true for infinite run
+        let distributionType = 'exponential'; // 'exponential' or 'fixed'
+
+        // DOM Elements - Declared globally, assigned on window.onload
+        let arrivalRateInput;
+        let serviceRateInput;
+        let numServersInput;
+        let simSpeedInput;
+        let maxCustomersInput;
+        let noMaxCustomersCheckbox;
+        let maxCustomersContainer;
+        let distExpRadio;
+        let distFixedRadio;
+        let startWithPrefillCheckbox; // NEW
+        let showLittlesLawCheckbox; // NEW
+        let showObservedRatesCheckbox; // NEW
+
+        let startButton;
+        let stopButton;
+        let resetButton;
+
+        let currentTimeDisplay;
+        let customersInSystemDisplay;
+        let customersInQueueDisplay;
+        let customersInServiceDisplay;
+        let avgWaitTimeDisplay;
+        let avgTimeInSystemDisplay;
+        let avgCustomersInQueueDisplay;
+        let avgCustomersInSystemDisplay;
+        let systemUtilizationDisplay;
+        let customersServedDisplay;
+        let observedArrivalRateDisplay; // NEW
+        let observedServiceRateDisplay; // NEW
+        let littlesLawCheckDisplay; // NEW
+        let littlesLawCheckMetricBox; // NEW
+        let observedArrivalRateMetricBox; // NEW
+        let observedServiceRateMetricBox; // NEW
+        let statusMessageDisplay;
+
+        let simulationCanvas; // The SVG element
+        let serversGroup; // The <g> element for servers
+        const SVG_NS = "http://www.w3.org/2000/svg"; // SVG Namespace constant
+
+        // Fixed Layout Constants (pixels in SVG viewBox)
+        const SYSTEM_BORDER_X = 50;
+        const SYSTEM_BORDER_Y = 50;
+        const SYSTEM_BORDER_WIDTH = 700;
+        const SYSTEM_BORDER_HEIGHT = 350;
+
+        const CENTER_LINE_Y = SYSTEM_BORDER_Y + SYSTEM_BORDER_HEIGHT / 2;
+
+        const ENTRY_DOOR_X = 40;
+        const EXIT_DOOR_X = 750;
+        const DOOR_Y_CENTER = CENTER_LINE_Y;
+        const DOOR_WIDTH = 10;
+        const DOOR_HEIGHT = 50;
+
+        const CUSTOMER_RADIUS = 20; // Fixed customer radius
+        const QUEUE_LINE_Y_POS = CENTER_LINE_Y + 70;
+        const QUEUE_CUSTOMER_Y_POS = QUEUE_LINE_Y_POS - CUSTOMER_RADIUS - 5;
+        const QUEUE_FRONT_X = 550;
+        const QUEUE_SPACING_X = CUSTOMER_RADIUS * 2.5;
+
+        const SERVER_RECT_WIDTH = 60; // Fixed width of server boxes
+        const SERVER_RECT_HEIGHT = 80; // Fixed height of server boxes
+        const SERVER_X_POS = SYSTEM_BORDER_X + SYSTEM_BORDER_WIDTH - SERVER_RECT_WIDTH - 80;
+        const SERVER_VERTICAL_GAP = 20; // Fixed vertical gap between servers
+
+        // Position of customer when they are 'at' a server (to the left of the server box)
+        const CUSTOMER_AT_SERVER_OFFSET_X = CUSTOMER_RADIUS + 10;
+        const CUSTOMER_AT_SERVER_X = SERVER_X_POS - CUSTOMER_AT_SERVER_OFFSET_X;
+
+        // Animation Path Coordinates
+        const CUSTOMER_SPAWN_X = -50; // Off-screen left (initial spawn point)
+        const CUSTOMER_SPAWN_Y = DOOR_Y_CENTER;
+
+        const CUSTOMER_POST_ENTRY_X = SYSTEM_BORDER_X + 120; // Point just past the entry door, inside the system
+        const CUSTOMER_POST_ENTRY_Y = CENTER_LINE_Y;
+
+        const CUSTOMER_PRE_EXIT_X = SERVER_X_POS + SERVER_RECT_WIDTH + CUSTOMER_RADIUS + 10; // Point just before exiting system
+        const CUSTOMER_PRE_EXIT_Y = DOOR_Y_CENTER;
+
+        const CUSTOMER_EXIT_OFFSCREEN_X = SYSTEM_BORDER_X + SYSTEM_BORDER_WIDTH + 50; // Off-screen right (final exit point)
+        const CUSTOMER_EXIT_OFFSCREEN_Y = DOOR_Y_CENTER;
+
+
+        // --- Simulation Logic Functions ---
+
+        /**
+         * Schedules a future event in the event queue.
+         * The event queue is always kept sorted by time.
+         * @param {number} time - The simulation time when this event is to occur.
+         * @param {string} type - The type of event (e.g., 'ARRIVAL', 'SERVICE_COMPLETION').
+         * @param {Customer} [customer=null] - The customer object related to this event.
+         * @param {number} [serverId=-1] - The ID of the server involved in the event, if applicable.
+         */
+        function scheduleEvent(time, type, customer = null, serverId = -1) {
+            eventQueue.push({ time, type, customer, serverId });
+            eventQueue.sort((a, b) => a.time - b.time);
+        }
+
+        /**
+         * Handles a customer arrival event.
+         * Creates a new customer, initiates its entry animation, and directs it to a server or queue.
+         * @param {Customer} customer - The customer object for the arriving customer.
+         */
+        function handleArrival(customer) {
+            customer.arrivalTime = currentTime; // Mark the true arrival time in simulation
+
+            // Visual: Create customer elements and start entry animation
+            spawnCustomer(customer);
+
+            // --- LOGICAL DECISION HAPPENS IMMEDIATELY AT ARRIVAL TIME ---
+            let idleServerIndex = servers.findIndex(server => !server.busy);
+
+            if (idleServerIndex !== -1) {
+                // Server is free, customer goes directly to service
+                servers[idleServerIndex].busy = true;
+                servers[idleServerIndex].customer = customer;
+                servers[idleServerIndex].busyStartTime = currentTime;
+                customer.serviceStartTime = currentTime;
+                // customer.queueEntryTime remains null, correctly signifying no queue wait
+
+                // Schedule service completion event immediately
+                const serviceTime = Distribution.generateTime(avgServiceRatePerMinPerServer, distributionType);
+                scheduleEvent(currentTime + serviceTime, 'SERVICE_COMPLETION', customer, idleServerIndex);
+
+                // Start visual animation to move to server, applying in-service style
+                customer.element.addEventListener('animationend', function handleEntryAnimationEnd() {
+                    customer.element.removeEventListener('animationend', handleEntryAnimationEnd);
+                    animateCustomerToService(customer, idleServerIndex); // Animate from post-entry to server
+                }, { once: true });
+                
+            } else {
+                // All servers busy, customer joins the queue
+                customersInQueue.push(customer);
+                customer.queueEntryTime = currentTime; // Set queue entry time
+
+                // Start visual animation to move to queue
+                customer.element.addEventListener('animationend', function handleEntryAnimationEnd() {
+                    customer.element.removeEventListener('animationend', handleEntryAnimationEnd);
+                    animateCustomerToQueue(customer); // Animate from post-entry to queue
+                }, { once: true });
+            }
+            // --- END OF LOGICAL DECISION ---
+
+            // Re-render visualization to ensure immediate reflection of logical state
+            // (e.g., queue length, server busy status) before animation completes.
+            updateVisualization(); // This will visually move existing queue customers if a new one joined
+
+            // Schedule the next arrival if the simulation is set to run indefinitely or has more *new* customers to serve
+            newCustomersArrivedCount++; // Increment count of new customers that have arrived
+            if (noMaxCustomers || newCustomersArrivedCount < maxCustomersToServe) { // Use newCustomersArrivedCount here
+                customerCounter++; // Increment global ID counter for the *next* customer
+                const interArrivalTime = Distribution.generateTime(avgArrivalRatePerMin, distributionType);
+                scheduleEvent(currentTime + interArrivalTime, 'ARRIVAL', new Customer(customerCounter));
+            }
+        }
+
+        /**
+         * Handles a service completion event.
+         * A customer leaves the server, exits the system, and the next customer in queue (if any) is moved to the server.
+         * @param {Customer} customer - The customer whose service is completing.
+         * @param {number} serverId - The index of the server that just finished service.
+         */
+        function handleServiceCompletion(customer, serverId) {
+            // Accumulate observed service time for this customer
+            if (customer.serviceStartTime !== null) {
+                totalServiceTimeObserved += (currentTime - customer.serviceStartTime); // NEW
+            }
+
+            // Free up the server
+            servers[serverId].busy = false;
+            servers[serverId].customer = null;
+            servers[serverId].busyStartTime = null;
+
+            customer.serviceEndTime = currentTime;
+            customer.leaveTime = currentTime;
+            completedCustomers.push(customer); // Add to completed list for metrics
+
+            // Remove 'in-service' styling before animating out
+            if (customer.element) { // Check if element exists before removing class
+                customer.element.classList.remove('customer-in-service');
+                customer.textElement.classList.remove('customer-in-service');
+            }
+            animateCustomerLeaving(customer); // Start visual exit animation
+
+            // If there are customers in the queue, move the next one to this freed server
+            if (customersInQueue.length > 0) {
+                const nextCustomer = customersInQueue.shift(); // Remove from front of queue
+                
+                servers[serverId].busy = true;
+                servers[serverId].customer = nextCustomer;
+                servers[serverId].busyStartTime = currentTime;
+                nextCustomer.serviceStartTime = currentTime; // Set service start time for the queuing customer
+
+                // Apply 'in-service' styling to the next customer as they move to server
+                if (nextCustomer.element) { // Check if element exists
+                    nextCustomer.element.classList.add('customer-in-service');
+                    nextCustomer.textElement.classList.add('customer-in-service');
+                }
+
+                const serviceTime = Distribution.generateTime(avgServiceRatePerMinPerServer, distributionType);
+                scheduleEvent(currentTime + serviceTime, 'SERVICE_COMPLETION', nextCustomer, serverId);
+                animateCustomerToService(nextCustomer, serverId);
+            }
+            updateVisualization(); // Re-render customer positions
+        }
+
+        // --- Visualization Helper Functions ---
+
+        /**
+         * Draws the static server rectangles and their labels on the SVG canvas.
+         * This function is called during initialization or when numServers changes.
+         * @param {number} index - The 0-based index of the server to draw.
+         */
+        function drawServer(index) {
+            console.log(`Drawing server S${index + 1}`); // Added logging
+            // Calculate vertical position to center servers if multiple
+            const totalServersHeight = numServers * SERVER_RECT_HEIGHT + (numServers - 1) * SERVER_VERTICAL_GAP;
+            const serverGroupTopY = CENTER_LINE_Y - (totalServersHeight / 2);
+            const serverY = serverGroupTopY + (index * (SERVER_RECT_HEIGHT + SERVER_VERTICAL_GAP));
+
+            const rect = document.createElementNS(SVG_NS, 'rect');
+            rect.setAttribute('x', SERVER_X_POS);
+            rect.setAttribute('y', serverY);
+            rect.setAttribute('width', SERVER_RECT_WIDTH);
+            rect.setAttribute('height', SERVER_RECT_HEIGHT);
+            rect.setAttribute('rx', 10);
+            rect.setAttribute('ry', 10);
+            rect.classList.add('server-item');
+            rect.setAttribute('id', `server-rect-${index}`); // Add ID for debugging
+            serversGroup.appendChild(rect);
+
+            const text = document.createElementNS(SVG_NS, 'text');
+            text.setAttribute('x', SERVER_X_POS + SERVER_RECT_WIDTH / 2);
+            text.setAttribute('y', serverY + SERVER_RECT_HEIGHT / 2 + 5); /* Adjust for text baseline */
+            text.textContent = `S${index + 1}`;
+            text.classList.add('server-text');
+            text.setAttribute('id', `server-text-${index}`); // Add ID for debugging
+            serversGroup.appendChild(text);
+        }
+
+        /**
+         * Updates the visual positions and states of all customers on the SVG canvas.
+         * This function is called frequently by runNextEvent.
+         */
+        function updateVisualization() {
+            // console.log(`updateVisualization called at time ${currentTime.toFixed(2)}`); // Added logging
+            const logicallyPresentCustomerIds = new Set();
+            
+            // Collect IDs of customers that should currently be rendered
+            customersInQueue.forEach(c => logicallyPresentCustomerIds.add(c.id));
+            servers.forEach(s => {
+                if (s.busy && s.customer) {
+                    logicallyPresentCustomerIds.add(s.customer.id);
+                }
+            });
+            // Also include customers that are currently animating (entering or leaving)
+            for (let customer of allCustomerObjects.values()) {
+                if (customer.element && (
+                    customer.element.classList.contains('customer-entering-path') ||
+                    customer.element.classList.contains('customer-moving-to-server') ||
+                    customer.element.classList.contains('customer-leaving-path')
+                )) {
+                    logicallyPresentCustomerIds.add(customer.id);
+                }
+            }
+
+            // Defensive check: If customer.element exists but is not in DOM, clear reference
+            for (let customer of allCustomerObjects.values()) {
+                if (customer.element && !simulationCanvas.contains(customer.element)) {
+                    console.warn(`Customer ${customer.id} element found in map but not in DOM. Clearing references.`);
+                    customer.element = null;
+                    customer.textElement = null;
+                    customer.isVisualized = false; // Mark for potential recreation
+                }
+            }
+
+            // Remove customer elements that are no longer active
+            const existingCustomerElements = simulationCanvas.querySelectorAll('.customer-circle, .customer-text');
+            existingCustomerElements.forEach(el => {
+                const idMatch = el.id.match(/customer-(?:circle|text)-(\d+)/);
+                if (idMatch && !logicallyPresentCustomerIds.has(parseInt(idMatch[1]))) {
+                    // console.log(`Removing customer element for ID: ${idMatch[1]}`); // Added logging
+                    el.remove();
+                }
+            });
+
+            // Iterate through all customer objects that *might* have elements
+            for (let customer of allCustomerObjects.values()) {
+                // If a customer object exists, but its SVG elements do not, and it's logically present or still being visualized, create them.
+                if ((!customer.element || !customer.textElement) && (logicallyPresentCustomerIds.has(customer.id) || customer.isVisualized)) {
+                    // console.log(`Creating/Recreating customer elements for ID: ${customer.id}`); // Added logging
+                    let initialX = CUSTOMER_SPAWN_X;
+                    let initialY = CUSTOMER_SPAWN_Y;
+
+                    // If customer is already in queue or service, create it directly at that spot
+                    if (logicallyPresentCustomerIds.has(customer.id)) {
+                        let isServing = servers.some(s => s.customer && s.customer.id === customer.id);
+                        if (isServing) {
+                            const serverIdx = servers.findIndex(s => s.customer && s.customer.id === customer.id);
+                            initialY = calculateServerYCenter(serverIdx);
+                            initialX = CUSTOMER_AT_SERVER_X;
+                        } else { // In queue
+                            const queueIdx = customersInQueue.findIndex(c => c.id === customer.id);
+                            initialX = QUEUE_FRONT_X - (queueIdx * QUEUE_SPACING_X);
+                            initialY = QUEUE_CUSTOMER_Y_POS;
+                        }
+                    }
+                    createCustomerElements(customer, initialX, initialY);
+                }
+
+                // Now, if elements exist, update their positions or remove them if no longer needed
+                if (customer.element && customer.textElement) {
+                    // Check if customer should be removed (fully left system and isVisualized is false)
+                    if (!customer.isVisualized) {
+                        // This means the customer's exit animation has completed, and it should be removed.
+                        // This block is redundant with the earlier `existingCustomerElements.forEach` loop
+                        // but acts as a final cleanup for `allCustomerObjects`.
+                        // console.log(`Final removal and map deletion for customer ID: ${customer.id}`); // Added logging
+                        if (customer.element.parentNode) customer.element.remove();
+                        if (customer.textElement.parentNode) customer.textElement.remove();
+                        allCustomerObjects.delete(customer.id); // Remove from map
+                        continue; // Move to next customer
+                    }
+
+                    // If customer is still visualized, update its position and styling
+                    let targetX, targetY;
+                    let isServing = servers.some(s => s.customer && s.customer.id === customer.id);
+
+                    if (isServing) {
+                        const serverIdx = servers.findIndex(s => s.customer && s.customer.id === customer.id);
+                        targetY = calculateServerYCenter(serverIdx);
+                        targetX = CUSTOMER_AT_SERVER_X;
+                        customer.element.classList.add('customer-in-service'); // Ensure red color
+                        customer.textElement.classList.add('customer-in-service');
+                    } else { // In queue
+                        const queueIdx = customersInQueue.findIndex(c => c.id === customer.id);
+                        targetX = QUEUE_FRONT_X - (queueIdx * QUEUE_SPACING_X);
+                        targetY = QUEUE_CUSTOMER_Y_POS;
+                        customer.element.classList.remove('customer-in-service'); // Ensure not red
+                        customer.textElement.classList.remove('customer-in-service');
+                    }
+
+                    const currentCx = parseFloat(customer.element.getAttribute('cx'));
+                    const currentCy = parseFloat(customer.element.getAttribute('cy'));
+
+                    // Only apply transition if no animation is running and positions differ
+                    if (!customer.element.style.animationName || customer.element.style.animationName === 'none') {
+                        if (currentCx !== targetX || currentCy !== targetY) {
+                            // console.log(`Applying transition for customer ${customer.id} from (${currentCx},${currentCy}) to (${targetX},${targetY})`); // Added logging
+                            customer.element.style.transition = 'transform 0.3s ease-out';
+                            customer.textElement.style.transition = 'transform 0.3s ease-out';
+                            
+                            const translateX = targetX - currentCx;
+                            const translateY = targetY - currentCy;
+
+                            customer.element.style.transform = `translate(${translateX}px, ${translateY}px)`;
+                            customer.textElement.style.transform = `translate(${translateX}px, ${translateY}px)`;
+
+                            customer.element.addEventListener('transitionend', function handler() {
+                                customer.element.removeEventListener('transitionend', handler);
+                                customer.element.style.transition = 'none';
+                                customer.textElement.style.transition = 'none';
+                                customer.element.style.transform = 'translate(0,0)'; // Clear transform
+                                customer.textElement.style.transform = 'none'; // Clear transform for text as well
+                                customer.element.setAttribute('cx', targetX); // Set final position as attributes
+                                customer.element.setAttribute('cy', targetY);
+                                customer.textElement.setAttribute('x', targetX);
+                                customer.textElement.setAttribute('y', targetY + 5); 
+                                // console.log(`Transition ended for customer ${customer.id}. Final pos: (${customer.element.getAttribute('cx')},${customer.element.getAttribute('cy')})`); // Added logging
+                            }, { once: true });
+                        } else {
+                            // If at correct position and no animation, ensure attributes are set
+                            customer.element.setAttribute('cx', targetX);
+                            customer.element.setAttribute('cy', targetY);
+                            customer.textElement.setAttribute('x', targetX);
+                            customer.textElement.setAttribute('y', targetY + 5); 
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Calculates the vertical center position for a server's visual representation.
+         * This helps in evenly spacing multiple servers.
+         * @param {number} index - The 0-based index of the server.
+         * @returns {number} The Y-coordinate for the center of the server.
+         */
+        function calculateServerYCenter(index) {
+            const totalServersHeight = numServers * SERVER_RECT_HEIGHT + (numServers - 1) * SERVER_VERTICAL_GAP;
+            const serverGroupTopY = CENTER_LINE_Y - (totalServersHeight / 2);
+            return serverGroupTopY + (index * (SERVER_RECT_HEIGHT + SERVER_VERTICAL_GAP)) + SERVER_RECT_HEIGHT / 2;
+        }
+
+        /**
+         * Creates and appends SVG circle (for visual body) and text (for ID) elements for a customer.
+         * Links these SVG elements back to the Customer object for easy manipulation.
+         * Sets `customer.isVisualized` to true.
+         * @param {Customer} customer - The Customer object to associate elements with.
+         * @param {number} x - Initial X coordinate for the customer circle.
+         * @param {number} y - Initial Y coordinate for the customer circle.
+         * @param {string} [extraClass=''] - Optional extra CSS class for styling.
+         */
+        function createCustomerElements(customer, x, y, extraClass = '') {
+            // Check if elements already exist in the DOM, even if customer.element reference is null
+            if (document.getElementById(`customer-circle-${customer.id}`)) {
+                customer.element = document.getElementById(`customer-circle-${customer.id}`);
+                customer.textElement = document.getElementById(`customer-text-${customer.id}`);
+                // console.log(`Found existing elements for customer ${customer.id}, re-linking.`); // Added logging
+                return; // Elements already exist and are linked
+            }
+
+            // console.log(`Creating new elements for customer ${customer.id} at (${x},${y})`); // Added logging
+            const circle = document.createElementNS(SVG_NS, 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', CUSTOMER_RADIUS); // Use fixed radius
+            circle.classList.add('customer-circle');
+            if (extraClass) circle.classList.add(extraClass);
+            circle.setAttribute('id', `customer-circle-${customer.id}`);
+            simulationCanvas.appendChild(circle);
+            customer.element = circle;
+
+            const text = document.createElementNS(SVG_NS, 'text');
+            text.setAttribute('x', x);
+            text.setAttribute('y', y + 5); 
+            text.setAttribute('text-anchor', 'middle'); /* Center text horizontally */
+            text.textContent = customer.id;
+            text.classList.add('customer-text');
+            if (extraClass) text.classList.add(extraClass);
+            text.setAttribute('id', `customer-text-${customer.id}`);
+            simulationCanvas.appendChild(text);
+            customer.textElement = text;
+
+            customer.isVisualized = true; // Mark as visualized
+        }
+
+        /**
+         * Applies a CSS keyframe animation to a customer's SVG elements.
+         * Resets previous animation states and sets CSS variables for dynamic movement.
+         * @param {SVGElement} element - The customer's circle SVG element.
+         * @param {SVGElement} textElement - The customer's text SVG element.
+         * @param {number} initialX - The starting X position for the animation.
+         * @param {number} initialY - The starting Y position for the animation.
+         * @param {number} targetX - The ending X position for the animation.
+         * @param {number} targetY - The ending Y position for the animation.
+         * @param {string} animationClass - The name of the CSS keyframe animation (e.g., 'enterPath', 'moveToService').
+         * @param {number} [duration=0.5] - Duration of the animation in seconds.
+         */
+        function animateElement(element, textElement, initialX, initialY, targetX, targetY, animationClass, duration = 0.5) {
+            // console.log(`Animating ${element.id} with ${animationClass} from (${initialX},${initialY}) to (${targetX},${targetY})`); // Added logging
+            // Clear previous animations and classes to ensure new animation starts correctly
+            element.style.animation = 'none';
+            textElement.style.animation = 'none';
+            element.classList.remove('customer-entering-path', 'customer-moving-to-server', 'customer-leaving-path');
+            textElement.classList.remove('customer-entering-path', 'customer-moving-to-server', 'customer-leaving-path');
+
+            // Force reflow: This ensures the browser applies the `animation: none` and class removals
+            // before applying the new animation. Without this, the browser might optimize out the
+            // intermediate states, causing animation glitches.
+            void element.offsetWidth;
+            void textElement.offsetWidth;
+
+            // Set the *actual* attributes to the initial position. CSS `transform` will then animate FROM this.
+            element.setAttribute('cx', initialX);
+            element.setAttribute('cy', initialY);
+            textElement.setAttribute('x', initialX);
+            textElement.setAttribute('y', initialY + 5); 
+
+            // Set CSS variables for keyframe calculations (used in @keyframes rules)
+            element.style.setProperty('--initial-x', `${initialX}`);
+            element.style.setProperty('--initial-y', `${initialY}`);
+            element.style.setProperty('--target-x', `${targetX}`);
+            element.style.setProperty('--target-y', `${targetY}`);
+
+            // Apply the new animation
+            element.style.animation = `${animationClass} ${duration}s ease-in-out forwards`;
+            textElement.style.animation = `${animationClass} ${duration}s ease-in-out forwards`;
+        }
+
+        /**
+         * Initiates the visual "spawn" and entry animation for a new customer.
+         * @param {Customer} customer - The customer to animate.
+         */
+        function spawnCustomer(customer) {
+            createCustomerElements(customer, CUSTOMER_SPAWN_X, CUSTOMER_SPAWN_Y);
+            animateElement(
+                customer.element, customer.textElement,
+                CUSTOMER_SPAWN_X, CUSTOMER_SPAWN_Y,
+                CUSTOMER_POST_ENTRY_X, CUSTOMER_POST_ENTRY_Y,
+                'enterPath', 1.0 // Longer duration for entry
+            );
+        }
+
+        /**
+         * Animates a customer from their current position to their spot in the queue.
+         * Also shifts other customers in the queue if necessary.
+         * @param {Customer} customer - The customer moving to the queue.
+         */
+        function animateCustomerToQueue(customer) {
+            // Calculate target position in queue (based on its current index)
+            const targetX = QUEUE_FRONT_X - (customersInQueue.indexOf(customer) * QUEUE_SPACING_X);
+            const targetY = QUEUE_CUSTOMER_Y_POS;
+
+            const currentX = parseFloat(customer.element.getAttribute('cx'));
+            const currentY = parseFloat(customer.element.getAttribute('cy'));
+
+            animateElement(
+                customer.element, customer.textElement,
+                currentX, currentY,
+                targetX, targetY,
+                'moveToService', 0.5
+            );
+
+            customer.element.addEventListener('animationend', function handler() {
+                customer.element.removeEventListener('animationend', handler);
+                // After animation, apply final positions and clear transform
+                customer.element.style.animation = 'none';
+                customer.textElement.style.animation = 'none';
+                customer.element.setAttribute('cx', targetX);
+                customer.element.setAttribute('cy', targetY);
+                customer.textElement.setAttribute('x', targetX);
+                customer.textElement.setAttribute('y', targetY + 5); 
+                customer.element.style.transform = 'none';
+                customer.textElement.style.transform = 'none';
+            }, { once: true });
+        }
+
+        /**
+         * Animates a customer from their current position (queue or entry point) to a server.
+         * @param {Customer} customer - The customer moving to the server.
+         * @param {number} serverId - The index of the server the customer is moving to.
+         */
+        function animateCustomerToService(customer, serverId) {
+            const serverY = calculateServerYCenter(serverId);
+
+            const currentX = parseFloat(customer.element.getAttribute('cx'));
+            const currentY = parseFloat(customer.element.getAttribute('cy'));
+
+            animateElement(
+                customer.element, customer.textElement,
+                currentX, currentY,
+                CUSTOMER_AT_SERVER_X, serverY, // Use fixed X for server position
+                'moveToService', 0.5
+            );
+
+            // The 'customer-in-service' class is now applied at the start of service (in handleArrival or handleServiceCompletion)
+            // The animationend listener just confirms position and clears transform
+            customer.element.addEventListener('animationend', function handler() {
+                customer.element.removeEventListener('animationend', handler);
+                customer.element.style.animation = 'none';
+                customer.textElement.style.animation = 'none';
+                customer.element.setAttribute('cx', CUSTOMER_AT_SERVER_X);
+                customer.element.setAttribute('cy', serverY);
+                customer.textElement.setAttribute('x', CUSTOMER_AT_SERVER_X);
+                customer.textElement.setAttribute('y', serverY + 5); 
+                customer.element.classList.add('customer-in-service');
+                customer.textElement.classList.add('customer-in-service');
+                customer.element.style.transform = 'none';
+                customer.textElement.style.transform = 'none';
+            }, { once: true });
+        }
+
+        /**
+         * Animates a customer leaving the system after service is complete.
+         * Moves them from the server, past the exit door, and off-screen.
+         * @param {Customer} customer - The customer leaving.
+         */
+        function animateCustomerLeaving(customer) {
+            if (customer.element && customer.textElement) {
+                const currentX = parseFloat(customer.element.getAttribute('cx'));
+                const currentY = parseFloat(customer.element.getAttribute('cy'));
+
+                // First animation: From server to just before exit door
+                animateElement(
+                    customer.element, customer.textElement,
+                    currentX, currentY,
+                    CUSTOMER_PRE_EXIT_X, CUSTOMER_PRE_EXIT_Y, // Use fixed X for pre-exit
+                    'moveToService', 0.5
+                );
+
+                customer.element.addEventListener('animationend', function handleExitDoorAnimationEnd() {
+                    customer.element.removeEventListener('animationend', handleExitDoorAnimationEnd);
+                    customer.element.style.animation = 'none';
+                    customer.textElement.style.animation = 'none';
+                    customer.element.setAttribute('cx', CUSTOMER_PRE_EXIT_X);
+                    customer.element.setAttribute('cy', CUSTOMER_PRE_EXIT_Y);
+                    customer.textElement.setAttribute('x', CUSTOMER_PRE_EXIT_X);
+                    customer.textElement.setAttribute('y', CUSTOMER_PRE_EXIT_Y + 5); 
+                    customer.element.style.transform = 'none';
+                    customer.textElement.style.transform = 'none';
+
+                    // Second animation: From exit door to off-screen
+                    animateElement(
+                        customer.element, customer.textElement,
+                        CUSTOMER_PRE_EXIT_X, CUSTOMER_PRE_EXIT_Y,
+                        CUSTOMER_EXIT_OFFSCREEN_X, CUSTOMER_EXIT_OFFSCREEN_Y, // Use fixed X for off-screen exit
+                        'leavePath', 1.0 // Longer duration for exit
+                    );
+
+                    customer.element.addEventListener('animationend', function handleFinalExitAnimationEnd() {
+                        customer.element.removeEventListener('animationend', handleFinalExitAnimationEnd);
+                        // Finally, remove the elements from the DOM after they are off-screen
+                        customer.element.remove();
+                        customer.textElement.remove();
+                        customer.isVisualized = false; // Mark as no longer visualized
+                        allCustomerObjects.delete(customer.id); // Remove from global map
+                    }, { once: true });
+                }, { once: true });
+            }
+        }
+
+
+        // --- Metric Update Function ---
+
+        /**
+         * Updates all real-time metrics displayed on the UI.
+         * Calculates averages and utilization based on accumulated data.
+         */
+        function updateMetrics() {
+            // Display current state metrics
+            currentTimeDisplay.textContent = currentTime.toFixed(2);
+            const busyServersCount = servers.filter(s => s.busy).length;
+            customersInSystemDisplay.textContent = customersInQueue.length + busyServersCount;
+            customersInQueueDisplay.textContent = customersInQueue.length;
+            customersInServiceDisplay.textContent = busyServersCount;
+            customersServedDisplay.textContent = completedCustomers.length;
+
+            // Calculate and display average times
+            let totalWait = 0;
+            let totalTimeInSystem = 0;
+
+            completedCustomers.forEach(c => {
+                // Corrected calculation for totalWait:
+                // If customer entered queue, add (serviceStartTime - queueEntryTime).
+                // If customer went directly to service (queueEntryTime is null), their wait time in queue is 0.
+                let customerQueueWait = 0;
+                if (c.queueEntryTime !== null && c.serviceStartTime !== null) {
+                    customerQueueWait = c.serviceStartTime - c.queueEntryTime;
+                }
+                totalWait += customerQueueWait;
+
+                if (c.leaveTime !== null && c.arrivalTime !== null) {
+                    totalTimeInSystem += (c.leaveTime - c.arrivalTime);
+                }
+            });
+
+            const avgWait = completedCustomers.length > 0 ? (totalWait / completedCustomers.length) : 0;
+            avgWaitTimeDisplay.textContent = avgWait.toFixed(2);
+
+            const avgSysTime = completedCustomers.length > 0 ? (totalTimeInSystem / completedCustomers.length) : 0;
+            avgTimeInSystemDisplay.textContent = avgSysTime.toFixed(2);
+
+            // Calculate and display average customers (Lq and L)
+            const avgCustomersInQueue = currentTime > 0 ? (totalCustomersInQueueArea / currentTime) : 0;
+            avgCustomersInQueueDisplay.textContent = avgCustomersInQueue.toFixed(2);
+
+            const avgCustomersInSystem = currentTime > 0 ? (totalCustomersInSystemArea / currentTime) : 0;
+            avgCustomersInSystemDisplay.textContent = avgCustomersInSystem.toFixed(2);
+
+            // Calculate and display system utilization
+            const theoreticalMaxBusyTime = currentTime * numServers;
+            const actualUtilization = theoreticalMaxBusyTime > 0 ? (totalSystemBusyTime / theoreticalMaxBusyTime) : 0;
+            systemUtilizationDisplay.textContent = (Math.min(actualUtilization, 1) * 100).toFixed(2) + '%';
+
+            // Calculate and display Observed Arrival Rate and Little's Law Check
+            const observedArrivalRate = currentTime > 0 ? (newCustomersArrivedCount / currentTime) : 0; // Use newCustomersArrivedCount for observed lambda
+            observedArrivalRateDisplay.textContent = observedArrivalRate.toFixed(2);
+
+            // NEW: Observed Service Rate
+            const avgServiceTimeObserved = completedCustomers.length > 0 ? (totalServiceTimeObserved / completedCustomers.length) : 0;
+            const observedServiceRate = avgServiceTimeObserved > 0 ? (1 / avgServiceTimeObserved) : 0;
+            observedServiceRateDisplay.textContent = observedServiceRate.toFixed(2);
+
+
+            const littlesLawCheckValue = observedArrivalRate * avgWait;
+            littlesLawCheckDisplay.textContent = littlesLawCheckValue.toFixed(2);
+        }
+
+        // --- M/M/S Steady-State Formulas (Helper Functions) ---
+        function factorial(n) {
+            if (n === 0 || n === 1) return 1;
+            let result = 1;
+            for (let i = 2; i <= n; i++) {
+                result *= i;
+            }
+            return result;
+        }
+
+        function calculateP0(lambda, mu, S) {
+            const rho = lambda / (S * mu);
+            if (rho >= 1) return 0; // Unstable system
+
+            let sum_po = 0;
+            for (let n = 0; n < S; n++) {
+                sum_po += Math.pow(lambda / mu, n) / factorial(n);
+            }
+
+            const term_s_or_more = (Math.pow(lambda / mu, S) / factorial(S)) * (1 / (1 - rho));
+            
+            return 1 / (sum_po + term_s_or_more);
+        }
+
+        function calculateLq_theory(lambda, mu, S) {
+            const rho = lambda / (S * mu);
+            if (rho >= 1) return Infinity; // Unstable system
+
+            const P0 = calculateP0(lambda, mu, S);
+            return (P0 * Math.pow(lambda / mu, S) * rho) / (factorial(S) * Math.pow(1 - rho, 2));
+        }
+
+        function calculateLs_theory(lambda, mu, S) {
+            const Lq = calculateLq_theory(lambda, mu, S);
+            if (Lq === Infinity) return Infinity;
+            return Lq + (lambda / mu);
+        }
+        // --- End M/M/S Steady-State Formulas ---
+
+
+        // --- Simulation Control Functions ---
+
+        /**
+         * Initializes the 'servers' array and draws their visual representations on the SVG.
+         * Called on reset and initial load.
+         */
+        function initializeServers() {
+            console.log("Initializing servers..."); // Added logging
+            servers = [];
+            serversGroup.innerHTML = ''; // Clear any existing server visuals
+
+            // Calculate total height needed for servers to center them vertically
+            const totalServersHeight = numServers * SERVER_RECT_HEIGHT + (numServers - 1) * SERVER_VERTICAL_GAP;
+            const serverGroupTopY = CENTER_LINE_Y - (totalServersHeight / 2);
+
+            for (let i = 0; i < numServers; i++) {
+                servers.push({ busy: false, customer: null, busyStartTime: null });
+                drawServer(i);
+            }
+            // Verify servers are in DOM after drawing
+            console.log(`Servers in DOM after initialize: ${serversGroup.children.length}`); // Added logging
+        }
+
+        /**
+         * Starts or resumes the simulation. Validates input parameters and schedules the first event.
+         */
+        function startSimulation() {
+            // Read current values from input fields
+            avgArrivalRatePerMin = parseFloat(arrivalRateInput.value);
+            avgServiceRatePerMinPerServer = parseFloat(serviceRateInput.value);
+            numServers = parseInt(numServersInput.value);
+            simSpeedMsPerSec = parseInt(simSpeedInput.value);
+            maxCustomersToServe = parseInt(maxCustomersInput.value);
+            noMaxCustomers = noMaxCustomersCheckbox.checked;
+
+            // Input validation
+            if (isNaN(avgArrivalRatePerMin) || avgArrivalRatePerMin <= 0 ||
+                isNaN(avgServiceRatePerMinPerServer) || avgServiceRatePerMinPerServer <= 0 ||
+                isNaN(numServers) || numServers < 1 ||
+                isNaN(simSpeedMsPerSec) || simSpeedMsPerSec < 10 ||
+                (!noMaxCustomers && (isNaN(maxCustomersToServe) || maxCustomersToServe < 1))) {
+                statusMessageDisplay.textContent = "Please enter valid positive numbers for all parameters.";
+                statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
+                statusMessageDisplay.classList.add('bg-red-100', 'text-red-800');
+                return;
+            }
+
+            // M/M/S stability condition (λ < S * μ) warning
+            if (distributionType === 'exponential' && avgArrivalRatePerMin >= (numServers * avgServiceRatePerMinPerServer)) {
+                statusMessageDisplay.textContent = "Warning: Arrival rate is >= total service rate. Queue will likely grow indefinitely (unstable M/M/S system).";
+                statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800');
+                statusMessageDisplay.classList.add('bg-orange-100', 'text-orange-800');
+            } else {
+                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800');
+                statusMessageDisplay.textContent = "Simulation running...";
+                statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+            }
+
+            // Disable Start, enable Stop, disable Reset while running
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            resetButton.disabled = true;
+
+            // Clear any existing interval if START is pressed again while simulation is already active
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+            }
+
+            // Ensure the next ARRIVAL event is always scheduled if one is not already pending
+            // This handles the very first arrival from the stream, whether pre-filled or not.
+            const hasPendingArrival = eventQueue.some(event => event.type === 'ARRIVAL');
+            if (!hasPendingArrival) {
+                // Only increment customerCounter for a new customer being scheduled.
+                // If pre-filled, customerCounter already reflects pre-filled IDs.
+                // If starting empty, this is the very first customer (ID 1).
+                if (customerCounter === 0) { // Only increment if starting from 0 (empty system)
+                    customerCounter = 1; 
+                } else { // If pre-filled, ensure customerCounter is ready for the next ID
+                    customerCounter++;
+                }
+                const interArrivalTime = Distribution.generateTime(avgArrivalRatePerMin, distributionType);
+                scheduleEvent(currentTime + interArrivalTime, 'ARRIVAL', new Customer(customerCounter));
+            }
+            
+            // Set the interval for the simulation's discrete event steps
+            const intervalDuration = simSpeedMsPerSec * 60; // Convert ms/sim-second to ms/sim-minute
+            simulationInterval = setInterval(runNextEvent, intervalDuration);
+        }
+
+        /**
+         * Stops the simulation, clearing the interval.
+         */
+        function stopSimulation() {
+            clearInterval(simulationInterval);
+            simulationInterval = null; // Clear the interval ID
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            resetButton.disabled = false; // Enable reset after stopping
+            statusMessageDisplay.textContent = "Simulation paused.";
+            statusMessageDisplay.classList.remove('bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
+            statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+        }
+
+        /**
+         * Resets the entire simulation state and UI to initial values.
+         */
+        function resetSimulation() {
+            console.log("Resetting simulation..."); // Added logging
+            stopSimulation(); // First, ensure the simulation is stopped
+
+            // Reset all simulation state variables
+            currentTime = 0;
+            customerCounter = 0; // Reset customer counter for unique IDs
+            newCustomersArrivedCount = 0; // NEW: Reset new customers arrived count
+            eventQueue = [];
+            customersInQueue = [];
+            servers = [];
+            completedCustomers = [];
+            totalSystemBusyTime = 0;
+            totalCustomersInQueueArea = 0; // Reset area
+            totalCustomersInSystemArea = 0; // Reset area
+            totalServiceTimeObserved = 0; // NEW: Reset observed service time
+
+            // Remove all dynamic customer elements from the SVG canvas
+            const allCustomerElementsOnCanvas = simulationCanvas.querySelectorAll('.customer-circle, .customer-text');
+            allCustomerElementsOnCanvas.forEach(el => el.remove());
+            allCustomerObjects.clear(); // Clear the global map of customer objects
+
+            // Re-initialize servers based on current numServers input value
+            initializeServers();
+
+            // Pre-fill system if checkbox is checked and system is stable
+            const preFillChecked = startWithPrefillCheckbox.checked;
+            const currentArrivalRate = parseFloat(arrivalRateInput.value);
+            const currentServiceRate = parseFloat(serviceRateInput.value);
+            const currentNumServers = parseInt(numServersInput.value);
+            const rho = currentArrivalRate / (currentNumServers * currentServiceRate);
+
+            if (preFillChecked && distributionType === 'exponential' && rho < 1) {
+                const theoreticalLs = calculateLs_theory(currentArrivalRate, currentServiceRate, currentNumServers);
+                const theoreticalLq = calculateLq_theory(currentArrivalRate, currentServiceRate, currentNumServers);
+
+                let numCustomersToPreFill = Math.round(theoreticalLs);
+                let numCustomersInQueueInitially = Math.round(theoreticalLq);
+
+                // Ensure queue count doesn't exceed total customers
+                if (numCustomersInQueueInitially > numCustomersToPreFill) {
+                    numCustomersInQueueInitially = numCustomersToPreFill;
+                }
+
+                let numCustomersInServiceInitially = Math.max(0, numCustomersToPreFill - numCustomersInQueueInitially);
+                
+                // Ensure we don't try to put more customers in service than available servers
+                numCustomersInServiceInitially = Math.min(numCustomersInServiceInitially, currentNumServers);
+
+                // Adjust queue size again based on actual service capacity
+                numCustomersInQueueInitially = Math.max(0, numCustomersToPreFill - numCustomersInServiceInitially);
+
+
+                // Pre-fill servers
+                for (let i = 0; i < numCustomersInServiceInitially; i++) {
+                    if (i < servers.length) { // Ensure server exists
+                        customerCounter++; // Increment global customer ID counter for pre-filled customer
+                        const customer = new Customer(customerCounter); // No arrivalTime in constructor
+                        customer.arrivalTime = 0; // Explicitly set to 0 for pre-filled customers
+                        servers[i].busy = true;
+                        servers[i].customer = customer;
+                        servers[i].busyStartTime = 0; // Started service at time 0
+                        customer.serviceStartTime = 0;
+
+                        const serviceTime = Distribution.generateTime(avgServiceRatePerMinPerServer, distributionType);
+                        scheduleEvent(serviceTime, 'SERVICE_COMPLETION', customer, i); // Schedule completion
+                        
+                        // Create and place customer visually immediately at server position
+                        createCustomerElements(customer, CUSTOMER_AT_SERVER_X, calculateServerYCenter(i));
+                        customer.element.classList.add('customer-in-service');
+                        customer.textElement.classList.add('customer-in-service');
+                    }
+                }
+
+                // Pre-fill queue
+                for (let i = 0; i < numCustomersInQueueInitially; i++) {
+                    customerCounter++; // Increment global customer ID counter for pre-filled customer
+                    const customer = new Customer(customerCounter); // No arrivalTime in constructor
+                    customer.arrivalTime = 0; // Explicitly set to 0 for pre-filled customers
+                    customersInQueue.push(customer);
+                    customer.queueEntryTime = 0; // Entered queue at time 0
+
+                    // Create and place customer visually immediately at queue position
+                    const customerX = QUEUE_FRONT_X - (customersInQueue.indexOf(customer) * QUEUE_SPACING_X);
+                    createCustomerElements(customer, customerX, QUEUE_CUSTOMER_Y_POS);
+                }
+
+                statusMessageDisplay.textContent = `System initialized with approx. ${numCustomersToPreFill} customers (approx. ${numCustomersInServiceInitially} in service, ${numCustomersInQueueInitially} in queue).`;
+                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800', 'bg-blue-100', 'text-blue-800');
+                statusMessageDisplay.classList.add('bg-green-100', 'text-green-800'); // Use green for successful pre-fill
+            } else {
+                // If not pre-filling or unstable, ensure customerCounter is reset to 0
+                // and the status message is correct. The first ARRIVAL will be scheduled by startSimulation.
+                customerCounter = 0; // Ensure it's 0 if no pre-fill
+                statusMessageDisplay.textContent = "Adjust parameters and click START.";
+                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
+                statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+            }
+
+            // Update UI to reflect reset state (all zeros or pre-filled state)
+            updateMetrics();
+            updateVisualization(); // Ensure visualization is cleared and reset
+
+            // Reset status message and button states
+            startButton.disabled = false;
+            resetButton.disabled = false;
+            stopButton.disabled = true; // Stop button always disabled after reset
+
+            // Ensure Little's Law Checkbox state is reflected
+            littlesLawCheckMetricBox.style.display = showLittlesLawCheckbox.checked ? 'block' : 'none';
+            // NEW: Ensure Observed Rates Checkbox state is reflected
+            observedArrivalRateMetricBox.style.display = showObservedRatesCheckbox.checked ? 'block' : 'none';
+            observedServiceRateMetricBox.style.display = showObservedRatesCheckbox.checked ? 'block' : 'none';
+        }
+
+        /**
+         * Main simulation loop function.
+         * Processes the next event in the queue and updates the simulation state and UI.
+         */
+        function runNextEvent() {
+            // console.log(`runNextEvent called. Current time: ${currentTime.toFixed(2)}, EventQueue length: ${eventQueue.length}`); // Added logging
+            if (eventQueue.length === 0) {
+                // If there are no more events, stop the simulation
+                if (noMaxCustomers) {
+                    statusMessageDisplay.textContent = "No more events scheduled. Simulation might be idle or inputs led to no further activity.";
+                } else if (newCustomersArrivedCount >= maxCustomersToServe && completedCustomers.length >= newCustomersArrivedCount) { // Check if new customers limit reached AND all served
+                    statusMessageDisplay.textContent = `Simulation finished: ${completedCustomers.length} customers served (out of ${newCustomersArrivedCount} new arrivals).`;
+                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-orange-100', 'text-orange-800');
+                    statusMessageDisplay.classList.add('bg-green-100', 'text-green-800');
+                } else if (newCustomersArrivedCount >= maxCustomersToServe && customersInQueue.length === 0 && servers.every(s => !s.busy)) {
+                    // All new customers have arrived, and system is empty.
+                    statusMessageDisplay.textContent = `Simulation finished: All ${newCustomersArrivedCount} new customers have arrived and been served.`;
+                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-orange-100', 'text-orange-800');
+                    statusMessageDisplay.classList.add('bg-green-100', 'text-green-800');
+                }
+                else {
+                    // This else block indicates an unexpected stop if maxCustomersToServe wasn't reached.
+                    // It means no more events are scheduled, which could be due to a very low arrival rate
+                    // or an issue with event scheduling.
+                    statusMessageDisplay.textContent = "No more events. Simulation might be stuck or all new customers have arrived.";
+                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800');
+                    statusMessageDisplay.classList.add('bg-red-100', 'text-red-800');
+                }
+                stopSimulation();
+                return; // Exit the function
+            }
+
+            const nextEventTime = eventQueue[0].time;
+            const timePassed = nextEventTime - currentTime; // This is the duration since the last event processed
+
+            // Accumulate metrics for the interval just passed (from currentTime to nextEventTime)
+            // The system state (queue length, busy servers) remained constant during this 'timePassed' interval.
+            if (timePassed > 0) {
+                totalCustomersInQueueArea += customersInQueue.length * timePassed;
+                totalCustomersInSystemArea += (customersInQueue.length + servers.filter(s => s.busy).length) * timePassed;
+                
+                servers.forEach(server => {
+                    if (server.busy) {
+                        totalSystemBusyTime += timePassed;
+                    }
+                });
+            }
+
+            // Process the next event
+            const nextEvent = eventQueue.shift();
+            currentTime = nextEvent.time; // Advance simulation time
+
+            // console.log(`Processing event: Type=${nextEvent.type}, Customer ID=${nextEvent.customer ? nextEvent.customer.id : 'N/A'}, Server ID=${nextEvent.serverId}`); // Added logging
+
+            switch (nextEvent.type) {
+                case 'ARRIVAL':
+                    handleArrival(nextEvent.customer);
+                    break;
+                case 'SERVICE_COMPLETION':
+                    handleServiceCompletion(nextEvent.customer, nextEvent.serverId);
+                    break;
+            }
+            
+            // Now call updateMetrics to display the calculated values based on the accumulated totals
+            // and the current simulation time.
+            updateMetrics();
+            updateVisualization();
+        }
+
+        // --- Event Listeners and Initial Setup ---
+
+        /**
+         * Initializes all DOM element references and attaches event listeners.
+         * This function is called once the entire HTML document has been loaded and parsed.
+         */
+        window.onload = function() {
+            // Assign DOM elements to the globally declared variables
+            arrivalRateInput = document.getElementById('arrivalRate');
+            serviceRateInput = document.getElementById('serviceRate');
+            numServersInput = document.getElementById('numServers');
+            simSpeedInput = document.getElementById('simSpeed');
+            maxCustomersInput = document.getElementById('maxCustomers');
+            noMaxCustomersCheckbox = document.getElementById('noMaxCustomers');
+            maxCustomersContainer = document.getElementById('maxCustomersContainer');
+            distExpRadio = document.getElementById('distExp');
+            distFixedRadio = document.getElementById('distFixed');
+            startWithPrefillCheckbox = document.getElementById('startWithPrefill'); // NEW
+            showLittlesLawCheckbox = document.getElementById('showLittlesLawCheck'); // NEW
+            showObservedRatesCheckbox = document.getElementById('showObservedRatesCheck'); // NEW
+
+            startButton = document.getElementById('startButton');
+            stopButton = document.getElementById('stopButton');
+            resetButton = document.getElementById('resetButton');
+
+            currentTimeDisplay = document.getElementById('currentTime');
+            customersInSystemDisplay = document.getElementById('customersInSystem');
+            customersInQueueDisplay = document.getElementById('customersInQueue');
+            customersInServiceDisplay = document.getElementById('customersInService');
+            avgWaitTimeDisplay = document.getElementById('avgWaitTime');
+            avgTimeInSystemDisplay = document.getElementById('avgTimeInSystem');
+            avgCustomersInQueueDisplay = document.getElementById('avgCustomersInQueueDisplay');
+            avgCustomersInSystemDisplay = document.getElementById('avgCustomersInSystemDisplay');
+            systemUtilizationDisplay = document.getElementById('systemUtilization');
+            customersServedDisplay = document.getElementById('customersServed');
+            observedArrivalRateDisplay = document.getElementById('observedArrivalRate'); // NEW
+            observedServiceRateDisplay = document.getElementById('observedServiceRate'); // NEW
+            littlesLawCheckDisplay = document.getElementById('littlesLawCheck'); // NEW
+            littlesLawCheckMetricBox = document.getElementById('littlesLawCheckMetricBox'); // NEW
+            // Corrected the ID for observedServiceRateMetricBox
+            observedArrivalRateMetricBox = document.getElementById('observedArrivalRateMetricBox'); // NEW
+            observedServiceRateMetricBox = document.getElementById('observedServiceRateMetricBox'); // NEW // Corrected ID here
+            statusMessageDisplay = document.getElementById('statusMessage');
+
+            simulationCanvas = document.getElementById('simulationCanvas');
+            serversGroup = document.getElementById('serversGroup');
+
+            // Attach event listeners to buttons
+            startButton.addEventListener('click', startSimulation);
+            stopButton.addEventListener('click', stopSimulation);
+            resetButton.addEventListener('click', resetSimulation);
+
+            // Add change listeners for input fields to update status/visualization when not running
+            [arrivalRateInput, serviceRateInput, numServersInput].forEach(input => { // Removed startWithPrefillCheckbox from here
+                input.addEventListener('change', () => {
+                    // Only react to changes if simulation is not currently running
+                    if (!simulationInterval) {
+                        const currentArrivalRate = parseFloat(arrivalRateInput.value);
+                        const currentServiceRate = parseFloat(serviceRateInput.value);
+                        const currentNumServers = parseInt(numServersInput.value);
+
+                        // Re-evaluate and display stability warning if needed
+                        if (distributionType === 'exponential' && currentArrivalRate >= (currentNumServers * currentServiceRate)) {
+                            statusMessageDisplay.textContent = "Warning: Arrival rate is >= total service rate. Queue will likely grow indefinitely (unstable M/M/S system).";
+                            statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800');
+                            statusMessageDisplay.classList.add('bg-orange-100', 'text-orange-800');
+                        } else {
+                            statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800');
+                            statusMessageDisplay.textContent = "Adjust parameters and click START.";
+                            statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+                        }
+                        // Re-initialize servers and update visualization if numServers changed and sim is not running
+                        initializeServers();
+                        updateVisualization();
+                    }
+                });
+            });
+
+            // Handle the 'No Maximum Customers' checkbox
+            noMaxCustomersCheckbox.addEventListener('change', () => {
+                noMaxCustomers = noMaxCustomersCheckbox.checked;
+                if (noMaxCustomers) {
+                    maxCustomersContainer.style.display = 'none';
+                } else {
+                    maxCustomersContainer.style.display = 'block';
+                }
+            });
+
+            // NEW: Handle the 'Start with Pre-filled System' checkbox separately
+            startWithPrefillCheckbox.addEventListener('change', () => {
+                // Trigger a reset to apply the pre-fill logic
+                resetSimulation();
+            });
+
+            // NEW: Handle the 'Show Little's Law Check' checkbox
+            showLittlesLawCheckbox.addEventListener('change', () => {
+                littlesLawCheckMetricBox.style.display = showLittlesLawCheckbox.checked ? 'block' : 'none';
+            });
+
+            // NEW: Handle the 'Show Observed Rates' checkbox
+            showObservedRatesCheckbox.addEventListener('change', () => {
+                const isChecked = showObservedRatesCheckbox.checked;
+                observedArrivalRateMetricBox.style.display = isChecked ? 'block' : 'none';
+                observedServiceRateMetricBox.style.display = isChecked ? 'block' : 'none';
+            });
+
+
+            // Handle changes in distribution type radio buttons
+            distExpRadio.addEventListener('change', (e) => {
+                distributionType = e.target.value;
+                const currentArrivalRate = parseFloat(arrivalRateInput.value);
+                const currentServiceRate = parseFloat(serviceRateInput.value);
+                const currentNumServers = parseInt(numServersInput.value);
+
+                // Update stability warning if exponential is selected
+                if (distributionType === 'exponential' && currentArrivalRate >= (currentNumServers * currentServiceRate)) {
+                    statusMessageDisplay.textContent = "Warning: Arrival rate is >= total service rate. Queue will likely grow indefinitely (unstable M/M/S system).";
+                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800');
+                    statusMessageDisplay.classList.add('bg-orange-100', 'text-orange-800');
+                } else {
+                    statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800');
+                    statusMessageDisplay.textContent = "Adjust parameters and click START.";
+                    statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+                }
+            });
+            distFixedRadio.addEventListener('change', (e) => {
+                distributionType = e.target.value;
+                statusMessageDisplay.textContent = "Fixed distribution selected. Note: This deviates from a pure M/M/S model.";
+                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
+                statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+            });
+
+            // Initial setup for max customers input visibility based on default checkbox state
+            noMaxCustomers = noMaxCustomersCheckbox.checked;
+            if (noMaxCustomers) {
+                maxCustomersContainer.style.display = 'none';
+            } else {
+                maxCustomersContainer.style.display = 'block';
+            }
+
+            // Perform a full reset to set the initial UI state and parameters when the page loads
+            resetSimulation();
+        };
+    </script>
+</body>
+</html>
