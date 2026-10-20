@@ -33,6 +33,7 @@
                 grid-template-columns: 1fr 1fr;
             }
         }
+        .full-row { grid-column: 1 / -1; }
         .section-title {
             color: #1e3a8a;
             font-size: 1.5rem;
@@ -115,6 +116,30 @@
             font-weight: 700;
             color: #1c52b2;
         }
+        /* Theory vs simulation comparison */
+        .cmp-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+        .cmp-table th { text-align: right; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+                        color: #64748b; font-weight: 600; padding: 8px 10px; border-bottom: 2px solid #e2e8f0; }
+        .cmp-table th:first-child, .cmp-table td:first-child { text-align: left; }
+        .cmp-table td { text-align: right; padding: 10px; border-bottom: 1px solid #e2e8f0; }
+        .cmp-table tbody tr { cursor: pointer; transition: background-color 0.15s; }
+        .cmp-table tbody tr:hover { background: #f1f5f9; }
+        .cmp-table tbody tr.selected { background: #eff6ff; box-shadow: inset 3px 0 0 #2563eb; }
+        .cmp-table .m-name { font-weight: 600; color: #1e293b; }
+        .cmp-table .m-sub { display: block; font-size: 0.75rem; color: #64748b; font-weight: 400; }
+        .cmp-table .theory { color: #475569; }
+        .cmp-table .sim { font-weight: 700; color: #1e293b; font-size: 1.05rem; }
+        .cmp-table .ci { color: #64748b; font-size: 0.85rem; white-space: nowrap; }
+        .verdict { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+                   font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+        .v-ok   { background: #dcfce7; color: #166534; }
+        .v-warn { background: #fef3c7; color: #92400e; }
+        .v-wait { background: #f1f5f9; color: #475569; }
+        .v-na   { background: #f1f5f9; color: #94a3b8; }
+        #convChartWrap { position: relative; }
+        #convChart { width: 100%; height: 280px; display: block; }
+        #chartTip { position: absolute; pointer-events: none; background: #1e293b; color: #f8fafc; font-size: 12px;
+                    padding: 6px 8px; border-radius: 6px; white-space: nowrap; display: none; transform: translate(-50%, -110%); }
         #simulationCanvas {
             background-color: #e2e8f0;
             border: 1px solid #94a3b8;
@@ -177,6 +202,8 @@
             fill: #f97316;
             stroke: #ea580c;
         }
+        /* keep the ID readable on orange circles (the class is applied to the text too) */
+        .customer-text.customer-in-service { fill: white; stroke: none; }
 
         /* Animations for customer flow */
         .customer-entering-path, .customer-moving-to-server, .customer-leaving-path {
@@ -209,7 +236,7 @@
 <body>
     <div class="container">
         <!-- Control Panel -->
-        <div class="control-panel p-4">
+        <div class="control-panel p-4 full-row">
             <h2 class="section-title">Simulation Controls</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div class="input-group">
@@ -257,35 +284,86 @@
                 </p>
             </div>
 
-            <!-- Consolidated Checkbox Group for better alignment -->
-            <div class="flex flex-col gap-2 mb-6">
-                <div class="flex items-center"> <!-- Removed input-group class -->
-                    <input type="checkbox" id="startWithPrefill" class="mr-0.5 rounded" checked>
-                    <label for="startWithPrefill" class="font-semibold text-gray-700 mb-0">Start with Pre-filled System (M/M/S only)</label>
-                </div>
-
-                <div class="flex items-center"> <!-- Removed input-group class -->
-                    <input type="checkbox" id="showLittlesLawCheck" class="mr-0.5 rounded">
-                    <label for="showLittlesLawCheck" class="font-semibold text-gray-700 mb-0">Show Little's Law Check</label>
-                </div>
-
-                <div class="flex items-center"> <!-- Removed input-group class -->
-                    <input type="checkbox" id="showObservedRatesCheck" class="mr-0.5 rounded">
-                    <label for="showObservedRatesCheck" class="font-semibold text-gray-700 mb-0">Show Observed Rates</label>
-                </div>
-            </div>
 
             <div class="flex flex-col sm:flex-row gap-4 mt-6">
                 <button id="startButton" class="flex-1">START SIMULATION</button>
                 <button id="stopButton" class="flex-1" disabled>STOP SIMULATION</button>
                 <button id="resetButton" class="flex-1">RESET</button>
             </div>
+            <div class="flex flex-col sm:flex-row gap-4 mt-4 items-end">
+                <div class="input-group flex-1">
+                    <label for="ffMinutes">Fast-forward (sim minutes, no animation):</label>
+                    <input type="number" id="ffMinutes" value="100" min="1" step="100" class="rounded-lg">
+                </div>
+                <button id="ffButton" class="flex-1" style="background-color:#6366f1;color:white;">FAST-FORWARD</button>
+            </div>
+            <div class="mt-6 p-3 bg-blue-100 text-blue-800 rounded-lg text-sm" id="statusMessage">
+                Adjust parameters and click START.
+            </div>
+        </div>
+
+        <!-- Theory vs Simulation -->
+        <div class="p-4 full-row">
+            <h2 class="section-title" style="margin-bottom:4px">Theory vs. Simulation</h2>
+            <p class="text-sm text-gray-500 mb-4">
+                Theory = M/M/S steady-state formulas. Simulated = long-run averages from this run, with a 95% confidence
+                interval (batch means). A measure is <b>consistent</b> when the theoretical value falls inside the interval.
+                Click a row to chart how it converges.
+            </p>
+            <div class="overflow-x-auto">
+                <table class="cmp-table">
+                    <thead><tr>
+                        <th>Measure</th><th>Theory</th><th>Simulated</th><th>95% CI</th><th>Diff</th><th style="text-align:center">Verdict</th>
+                    </tr></thead>
+                    <tbody id="cmpBody"></tbody>
+                </table>
+            </div>
+            <div class="mt-6">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+                    <h3 class="font-bold text-slate-800" id="chartTitle">Convergence of Lq</h3>
+                    <span class="text-xs text-gray-500">
+                        <span style="display:inline-block;width:18px;height:2px;background:#2563eb;vertical-align:middle"></span> Simulated running average
+                        &nbsp;&nbsp;<span style="display:inline-block;width:18px;border-top:2px dashed #475569;vertical-align:middle"></span> Theory
+                        &nbsp;&nbsp;<span style="display:inline-block;width:2px;height:12px;background:#2563eb;vertical-align:middle;opacity:.6"></span> 95% CI now
+                    </span>
+                </div>
+                <div id="convChartWrap">
+                    <canvas id="convChart" role="img" aria-label="Running average versus theoretical value over simulated time"></canvas>
+                    <div id="chartTip"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulation Visualization -->
+        <div class="p-4 full-row">
+            <h2 class="section-title">Simulation Visualization</h2>
+            <svg id="simulationCanvas" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid meet">
+                <!-- System Border -->
+                <rect x="50" y="50" width="700" height="350" class="system-border"></rect>
+                <text x="400" y="75" font-size="20" text-anchor="middle" fill="#333">Queueing System Boundary</text>
+
+                <!-- Entry Door -->
+                <rect x="40" y="200" width="10" height="50" class="door"></rect>
+                <text x="30" y="225" font-size="16" text-anchor="end" alignment-baseline="middle" fill="#333">Entry</text>
+
+                <!-- Exit Door -->
+                <rect x="750" y="200" width="10" height="50" class="door"></rect>
+                <text x="770" y="225" font-size="16" text-anchor="start" alignment-baseline="middle" fill="#333">Exit</text>
+
+                <!-- Queue Line -->
+                <line id="queueLine" x1="130" y1="250" x2="530" y2="250" class="queue-line"></line>
+                <text id="queueLabel" x="330" y="280" font-size="20" text-anchor="middle" fill="#333">Waiting Line (Queue)</text>
+
+                <!-- Servers will be dynamically drawn here -->
+                <g id="serversGroup"></g>
+                <text id="serversLabel" x="640" y="100" font-size="18" text-anchor="middle" fill="#333">Servers</text>
+            </svg>
         </div>
 
         <!-- Metrics Display -->
-        <div class="metrics-display p-4">
-            <h2 class="section-title">Real-time Metrics</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="metrics-display p-4 full-row">
+            <h2 class="section-title">Current State</h2>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="metric-box">
                     <div class="metric-label">Current Time (min):</div>
                     <div id="currentTime" class="metric-value">0.00</div>
@@ -303,74 +381,12 @@
                     <div id="customersInService" class="metric-value">0</div>
                 </div>
                 <div class="metric-box">
-                    <div class="metric-label">Actual System Utilization:</div>
-                    <div id="systemUtilization" class="metric-value">0.00%</div>
-                </div>
-                <div class="metric-box">
                     <div class="metric-label">Customers Served:</div>
                     <div id="customersServed" class="metric-value">0</div>
                 </div>
-                <div class="metric-box">
-                    <div class="metric-label">Avg. Wait Time in Queue (Wq, min):</div>
-                    <div id="avgWaitTime" class="metric-value">0.00</div>
-                </div>
-                <div class="metric-box">
-                    <div class="metric-label">Avg. Time in System (Ws, min):</div>
-                    <div id="avgTimeInSystem" class="metric-value">0.00</div>
-                </div>
-                <div class="metric-box">
-                    <div class="metric-label">Avg. Customers in Queue (Lq):</div>
-                    <div id="avgCustomersInQueueDisplay" class="metric-value">0.00</div>
-                </div>
-                 <div class="metric-box">
-                    <div class="metric-label">Avg. Customers in System (Ls):</div>
-                    <div id="avgCustomersInSystemDisplay" class="metric-value">0.00</div>
-                </div>
-                <!-- Hidden by default -->
-                <div class="metric-box" id="observedArrivalRateMetricBox" style="display: none;">
-                    <div class="metric-label">Observed Arrival Rate (λ_obs, cust/min):</div>
-                    <div id="observedArrivalRate" class="metric-value">0.00</div>
-                </div>
-                <!-- Hidden by default -->
-                <div class="metric-box" id="observedServiceRateMetricBox" style="display: none;">
-                    <div class="metric-label">Observed Service Rate (μ_obs, cust/min/server):</div>
-                    <div id="observedServiceRate" class="metric-value">0.00</div>
-                </div>
-                <div class="metric-box" id="littlesLawCheckMetricBox" style="display: none;"> <!-- Hidden by default -->
-                    <div class="metric-label">Little's Law Check (λ_obs * Wq):</div>
-                    <div id="littlesLawCheck" class="metric-value">0.00</div>
-                </div>
-            </div>
-            <div class="mt-6 p-3 bg-blue-100 text-blue-800 rounded-lg text-sm" id="statusMessage">
-                Adjust parameters and click START.
             </div>
         </div>
 
-        <!-- Simulation Visualization -->
-        <div class="col-span-1 md:col-span-2 p-4">
-            <h2 class="section-title">Simulation Visualization</h2>
-            <svg id="simulationCanvas" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid meet">
-                <!-- System Border -->
-                <rect x="50" y="50" width="700" height="350" class="system-border"></rect>
-                <text x="400" y="75" font-size="20" text-anchor="middle" fill="#333">Queueing System Boundary</text>
-
-                <!-- Entry Door -->
-                <rect x="40" y="200" width="10" height="50" class="door"></rect>
-                <text x="30" y="225" font-size="16" text-anchor="end" alignment-baseline="middle" fill="#333">Entry</text>
-
-                <!-- Exit Door -->
-                <rect x="750" y="200" width="10" height="50" class="door"></rect>
-                <text x="770" y="225" font-size="16" text-anchor="start" alignment-baseline="middle" fill="#333">Exit</text>
-
-                <!-- Queue Line -->
-                <line x1="130" y1="295" x2="590" y2="295" class="queue-line"></line>
-                <text x="360" y="320" font-size="20" text-anchor="middle" fill="#333">Waiting Line (Queue)</text>
-
-                <!-- Servers will be dynamically drawn here -->
-                <g id="serversGroup"></g>
-                <text x="700" y="100" font-size="20" text-anchor="middle" fill="#333">Servers</text>
-            </svg>
-        </div>
     </div>
 
     <script>
@@ -450,6 +466,56 @@
         let totalCustomersInQueueArea = 0; // Area under Lq(t) curve for average queue length
         let totalCustomersInSystemArea = 0; // Area under L(t) curve for average system occupancy
         let totalServiceTimeObserved = 0; // NEW: Total accumulated service time across all customers
+        // FIX: running sums so averages don't re-loop over every completed customer on every event (was O(n^2))
+        let totalQueueWaitCompleted = 0;
+        let totalSystemTimeCompleted = 0;
+        let fastMode = false; // FIX: true during fast-forward -> skip all animation work
+
+        /**
+         * Batch-means estimator for a 95% CI on a long-run average.
+         * Keeps 20-40 batches; when 40 fill up, adjacent pairs merge and the batch size doubles,
+         * so batches keep getting longer (less autocorrelated) as the run grows.
+         */
+        class BatchMeans {
+            constructor(baseSize) { this.base = baseSize; this.reset(); }
+            reset() { this.size = this.base; this.batches = []; this.sum = 0; this.w = 0; }
+            // time-weighted: value held for duration dt
+            addTime(value, dt) {
+                while (dt > 1e-12) {
+                    const take = Math.min(dt, this.size - this.w);
+                    this.sum += value * take; this.w += take; dt -= take;
+                    if (this.w >= this.size - 1e-12) this._close();
+                }
+            }
+            // per-observation (one customer)
+            addObs(x) { this.sum += x; this.w += 1; if (this.w >= this.size) this._close(); }
+            _close() {
+                this.batches.push(this.sum / this.w); this.sum = 0; this.w = 0;
+                if (this.batches.length >= 40) {
+                    const merged = [];
+                    for (let i = 0; i < 40; i += 2) merged.push((this.batches[i] + this.batches[i + 1]) / 2);
+                    this.batches = merged; this.size *= 2;
+                }
+            }
+            ci() {
+                const k = this.batches.length;
+                if (k < 10) return null;
+                const mean = this.batches.reduce((a, b) => a + b, 0) / k;
+                const v = this.batches.reduce((a, b) => a + (b - mean) ** 2, 0) / (k - 1);
+                const df = k - 1, t = 1.96 + 2.4 / df + 3 / (df * df); // t(0.975, df) approximation
+                const half = t * Math.sqrt(v / k);
+                return { lo: mean - half, hi: mean + half, half, k };
+            }
+        }
+        const bm = {
+            Lq: new BatchMeans(1), Ls: new BatchMeans(1), rho: new BatchMeans(1),   // base = 1 sim-minute
+            Wq: new BatchMeans(20), Ws: new BatchMeans(20), Pw: new BatchMeans(20), // base = 20 customers
+        };
+        let customersWaited = 0;
+        let history = [];           // [{t, Lq, Ls, rho, Wq, Ws, Pw}] running averages for the chart
+        let historyStep = 0.25;     // sim-minutes between samples; doubles when history gets long
+        let lastHistoryT = -Infinity;
+        let chartMeasure = 'Lq';
         let lastMetricUpdateTime = 0; // The last time metrics were updated for accumulation calculations
 
         // Input Parameters (rates are per minute) - Default values
@@ -471,11 +537,9 @@
         let maxCustomersContainer;
         let distExpRadio;
         let distFixedRadio;
-        let startWithPrefillCheckbox; // NEW
-        let showLittlesLawCheckbox; // NEW
-        let showObservedRatesCheckbox; // NEW
 
         let startButton;
+        let ffButton;
         let stopButton;
         let resetButton;
 
@@ -489,12 +553,6 @@
         let avgCustomersInSystemDisplay;
         let systemUtilizationDisplay;
         let customersServedDisplay;
-        let observedArrivalRateDisplay; // NEW
-        let observedServiceRateDisplay; // NEW
-        let littlesLawCheckDisplay; // NEW
-        let littlesLawCheckMetricBox; // NEW
-        let observedArrivalRateMetricBox; // NEW
-        let observedServiceRateMetricBox; // NEW
         let statusMessageDisplay;
 
         let simulationCanvas; // The SVG element
@@ -516,19 +574,34 @@
         const DOOR_HEIGHT = 50;
 
         const CUSTOMER_RADIUS = 20; // Fixed customer radius
-        const QUEUE_LINE_Y_POS = CENTER_LINE_Y + 70;
-        const QUEUE_CUSTOMER_Y_POS = QUEUE_LINE_Y_POS - CUSTOMER_RADIUS - 5;
-        const QUEUE_FRONT_X = 550;
+        // Queue sits on the centre line; its front is kept well left of the customers at the
+        // servers so the two never overlap, whatever the number of servers.
+        const QUEUE_CUSTOMER_Y_POS = CENTER_LINE_Y;
+        const QUEUE_LINE_Y_POS = QUEUE_CUSTOMER_Y_POS + CUSTOMER_RADIUS + 5;
         const QUEUE_SPACING_X = CUSTOMER_RADIUS * 2.5;
+        const QUEUE_TAIL_MIN_X = SYSTEM_BORDER_X + 60; // queue never extends past the entry area
 
         const SERVER_RECT_WIDTH = 60; // Fixed width of server boxes
-        const SERVER_RECT_HEIGHT = 80; // Fixed height of server boxes
+        const SERVER_AREA_HEIGHT = 300; // servers are scaled to fit inside this height
         const SERVER_X_POS = SYSTEM_BORDER_X + SYSTEM_BORDER_WIDTH - SERVER_RECT_WIDTH - 80;
-        const SERVER_VERTICAL_GAP = 20; // Fixed vertical gap between servers
+        // Server box height/gap shrink as S grows so the column always fits inside the boundary
+        function serverGap() { return numServers <= 3 ? 20 : 10; }
+        function serverHeight() {
+            return Math.min(80, (SERVER_AREA_HEIGHT - (numServers - 1) * serverGap()) / numServers);
+        }
 
         // Position of customer when they are 'at' a server (to the left of the server box)
         const CUSTOMER_AT_SERVER_OFFSET_X = CUSTOMER_RADIUS + 10;
         const CUSTOMER_AT_SERVER_X = SERVER_X_POS - CUSTOMER_AT_SERVER_OFFSET_X;
+        const QUEUE_FRONT_X = CUSTOMER_AT_SERVER_X - CUSTOMER_RADIUS * 4; // ~2 circle widths of clearance
+
+        /** x-position of the customer at index i in the queue (spacing compresses when the queue is long). */
+        function queueX(i) {
+            const n = customersInQueue.length;
+            const room = QUEUE_FRONT_X - QUEUE_TAIL_MIN_X;
+            const spacing = n > 1 ? Math.min(QUEUE_SPACING_X, room / (n - 1)) : QUEUE_SPACING_X;
+            return QUEUE_FRONT_X - i * spacing;
+        }
 
         // Animation Path Coordinates
         const CUSTOMER_SPAWN_X = -50; // Off-screen left (initial spawn point)
@@ -568,7 +641,7 @@
             customer.arrivalTime = currentTime; // Mark the true arrival time in simulation
 
             // Visual: Create customer elements and start entry animation
-            spawnCustomer(customer);
+            if (!fastMode) spawnCustomer(customer);
 
             // --- LOGICAL DECISION HAPPENS IMMEDIATELY AT ARRIVAL TIME ---
             let idleServerIndex = servers.findIndex(server => !server.busy);
@@ -586,7 +659,7 @@
                 scheduleEvent(currentTime + serviceTime, 'SERVICE_COMPLETION', customer, idleServerIndex);
 
                 // Start visual animation to move to server, applying in-service style
-                customer.element.addEventListener('animationend', function handleEntryAnimationEnd() {
+                if (!fastMode) customer.element.addEventListener('animationend', function handleEntryAnimationEnd() {
                     customer.element.removeEventListener('animationend', handleEntryAnimationEnd);
                     animateCustomerToService(customer, idleServerIndex); // Animate from post-entry to server
                 }, { once: true });
@@ -597,7 +670,7 @@
                 customer.queueEntryTime = currentTime; // Set queue entry time
 
                 // Start visual animation to move to queue
-                customer.element.addEventListener('animationend', function handleEntryAnimationEnd() {
+                if (!fastMode) customer.element.addEventListener('animationend', function handleEntryAnimationEnd() {
                     customer.element.removeEventListener('animationend', handleEntryAnimationEnd);
                     animateCustomerToQueue(customer); // Animate from post-entry to queue
                 }, { once: true });
@@ -606,7 +679,7 @@
 
             // Re-render visualization to ensure immediate reflection of logical state
             // (e.g., queue length, server busy status) before animation completes.
-            updateVisualization(); // This will visually move existing queue customers if a new one joined
+            if (!fastMode) updateVisualization(); // This will visually move existing queue customers if a new one joined
 
             // Schedule the next arrival if the simulation is set to run indefinitely or has more *new* customers to serve
             newCustomersArrivedCount++; // Increment count of new customers that have arrived
@@ -637,13 +710,26 @@
             customer.serviceEndTime = currentTime;
             customer.leaveTime = currentTime;
             completedCustomers.push(customer); // Add to completed list for metrics
+            // FIX: accumulate per-customer times once, at departure
+            const qWait = customer.queueEntryTime !== null ? customer.serviceStartTime - customer.queueEntryTime : 0;
+            totalQueueWaitCompleted += qWait;
+            totalSystemTimeCompleted += customer.leaveTime - customer.arrivalTime;
+            // "waited" = had to join the queue (all servers busy on arrival)
+            const waited = customer.queueEntryTime !== null ? 1 : 0;
+            customersWaited += waited;
+            bm.Wq.addObs(qWait); bm.Ws.addObs(customer.leaveTime - customer.arrivalTime); bm.Pw.addObs(waited);
 
             // Remove 'in-service' styling before animating out
             if (customer.element) { // Check if element exists before removing class
                 customer.element.classList.remove('customer-in-service');
                 customer.textElement.classList.remove('customer-in-service');
             }
-            animateCustomerLeaving(customer); // Start visual exit animation
+            if (!fastMode) {
+                animateCustomerLeaving(customer); // Start visual exit animation
+            } else {
+                if (customer.element) { customer.element.remove(); customer.textElement.remove(); }
+                allCustomerObjects.delete(customer.id);
+            }
 
             // If there are customers in the queue, move the next one to this freed server
             if (customersInQueue.length > 0) {
@@ -662,9 +748,9 @@
 
                 const serviceTime = Distribution.generateTime(avgServiceRatePerMinPerServer, distributionType);
                 scheduleEvent(currentTime + serviceTime, 'SERVICE_COMPLETION', nextCustomer, serverId);
-                animateCustomerToService(nextCustomer, serverId);
+                if (!fastMode) animateCustomerToService(nextCustomer, serverId);
             }
-            updateVisualization(); // Re-render customer positions
+            if (!fastMode) updateVisualization(); // Re-render customer positions
         }
 
         // --- Visualization Helper Functions ---
@@ -677,15 +763,15 @@
         function drawServer(index) {
             console.log(`Drawing server S${index + 1}`); // Added logging
             // Calculate vertical position to center servers if multiple
-            const totalServersHeight = numServers * SERVER_RECT_HEIGHT + (numServers - 1) * SERVER_VERTICAL_GAP;
+            const totalServersHeight = numServers * serverHeight() + (numServers - 1) * serverGap();
             const serverGroupTopY = CENTER_LINE_Y - (totalServersHeight / 2);
-            const serverY = serverGroupTopY + (index * (SERVER_RECT_HEIGHT + SERVER_VERTICAL_GAP));
+            const serverY = serverGroupTopY + (index * (serverHeight() + serverGap()));
 
             const rect = document.createElementNS(SVG_NS, 'rect');
             rect.setAttribute('x', SERVER_X_POS);
             rect.setAttribute('y', serverY);
             rect.setAttribute('width', SERVER_RECT_WIDTH);
-            rect.setAttribute('height', SERVER_RECT_HEIGHT);
+            rect.setAttribute('height', serverHeight());
             rect.setAttribute('rx', 10);
             rect.setAttribute('ry', 10);
             rect.classList.add('server-item');
@@ -694,7 +780,7 @@
 
             const text = document.createElementNS(SVG_NS, 'text');
             text.setAttribute('x', SERVER_X_POS + SERVER_RECT_WIDTH / 2);
-            text.setAttribute('y', serverY + SERVER_RECT_HEIGHT / 2 + 5); /* Adjust for text baseline */
+            text.setAttribute('y', serverY + serverHeight() / 2 + 6); /* Adjust for text baseline */
             text.textContent = `S${index + 1}`;
             text.classList.add('server-text');
             text.setAttribute('id', `server-text-${index}`); // Add ID for debugging
@@ -764,7 +850,7 @@
                             initialX = CUSTOMER_AT_SERVER_X;
                         } else { // In queue
                             const queueIdx = customersInQueue.findIndex(c => c.id === customer.id);
-                            initialX = QUEUE_FRONT_X - (queueIdx * QUEUE_SPACING_X);
+                            initialX = queueX(queueIdx);
                             initialY = QUEUE_CUSTOMER_Y_POS;
                         }
                     }
@@ -797,7 +883,7 @@
                         customer.textElement.classList.add('customer-in-service');
                     } else { // In queue
                         const queueIdx = customersInQueue.findIndex(c => c.id === customer.id);
-                        targetX = QUEUE_FRONT_X - (queueIdx * QUEUE_SPACING_X);
+                        targetX = queueX(queueIdx);
                         targetY = QUEUE_CUSTOMER_Y_POS;
                         customer.element.classList.remove('customer-in-service'); // Ensure not red
                         customer.textElement.classList.remove('customer-in-service');
@@ -850,9 +936,9 @@
          * @returns {number} The Y-coordinate for the center of the server.
          */
         function calculateServerYCenter(index) {
-            const totalServersHeight = numServers * SERVER_RECT_HEIGHT + (numServers - 1) * SERVER_VERTICAL_GAP;
+            const totalServersHeight = numServers * serverHeight() + (numServers - 1) * serverGap();
             const serverGroupTopY = CENTER_LINE_Y - (totalServersHeight / 2);
-            return serverGroupTopY + (index * (SERVER_RECT_HEIGHT + SERVER_VERTICAL_GAP)) + SERVER_RECT_HEIGHT / 2;
+            return serverGroupTopY + (index * (serverHeight() + serverGap())) + serverHeight() / 2;
         }
 
         /**
@@ -889,6 +975,9 @@
             text.setAttribute('y', y + 5); 
             text.setAttribute('text-anchor', 'middle'); /* Center text horizontally */
             text.textContent = customer.id;
+            // shrink long IDs so they stay inside the circle
+            const digits = String(customer.id).length;
+            text.style.fontSize = digits <= 2 ? '14px' : digits === 3 ? '13px' : digits === 4 ? '11px' : '9px';
             text.classList.add('customer-text');
             if (extraClass) text.classList.add(extraClass);
             text.setAttribute('id', `customer-text-${customer.id}`);
@@ -962,7 +1051,7 @@
          */
         function animateCustomerToQueue(customer) {
             // Calculate target position in queue (based on its current index)
-            const targetX = QUEUE_FRONT_X - (customersInQueue.indexOf(customer) * QUEUE_SPACING_X);
+            const targetX = queueX(customersInQueue.indexOf(customer));
             const targetY = QUEUE_CUSTOMER_Y_POS;
 
             const currentX = parseFloat(customer.element.getAttribute('cx'));
@@ -1041,6 +1130,7 @@
                     CUSTOMER_PRE_EXIT_X, CUSTOMER_PRE_EXIT_Y, // Use fixed X for pre-exit
                     'moveToService', 0.5
                 );
+                customer.element.classList.add('customer-leaving-path'); // FIX: keep element alive during exit
 
                 customer.element.addEventListener('animationend', function handleExitDoorAnimationEnd() {
                     customer.element.removeEventListener('animationend', handleExitDoorAnimationEnd);
@@ -1060,6 +1150,7 @@
                         CUSTOMER_EXIT_OFFSCREEN_X, CUSTOMER_EXIT_OFFSCREEN_Y, // Use fixed X for off-screen exit
                         'leavePath', 1.0 // Longer duration for exit
                     );
+                    customer.element.classList.add('customer-leaving-path');
 
                     customer.element.addEventListener('animationend', function handleFinalExitAnimationEnd() {
                         customer.element.removeEventListener('animationend', handleFinalExitAnimationEnd);
@@ -1081,63 +1172,177 @@
          * Calculates averages and utilization based on accumulated data.
          */
         function updateMetrics() {
-            // Display current state metrics
             currentTimeDisplay.textContent = currentTime.toFixed(2);
-            const busyServersCount = servers.filter(s => s.busy).length;
-            customersInSystemDisplay.textContent = customersInQueue.length + busyServersCount;
+            const busy = servers.filter(s => s.busy).length;
+            customersInSystemDisplay.textContent = customersInQueue.length + busy;
             customersInQueueDisplay.textContent = customersInQueue.length;
-            customersInServiceDisplay.textContent = busyServersCount;
+            customersInServiceDisplay.textContent = busy;
             customersServedDisplay.textContent = completedCustomers.length;
 
-            // Calculate and display average times
-            let totalWait = 0;
-            let totalTimeInSystem = 0;
+            const est = simEstimates();
 
-            completedCustomers.forEach(c => {
-                // Corrected calculation for totalWait:
-                // If customer entered queue, add (serviceStartTime - queueEntryTime).
-                // If customer went directly to service (queueEntryTime is null), their wait time in queue is 0.
-                let customerQueueWait = 0;
-                if (c.queueEntryTime !== null && c.serviceStartTime !== null) {
-                    customerQueueWait = c.serviceStartTime - c.queueEntryTime;
-                }
-                totalWait += customerQueueWait;
+            updateComparison(est);
+            drawChart();
+        }
 
-                if (c.leaveTime !== null && c.arrivalTime !== null) {
-                    totalTimeInSystem += (c.leaveTime - c.arrivalTime);
+        const MEASURES = [
+            { key: 'rho', name: 'Utilization ρ', sub: 'fraction of time servers are busy', pct: true },
+            { key: 'Lq',  name: 'Lq', sub: 'avg. customers waiting in queue' },
+            { key: 'Ls',  name: 'Ls', sub: 'avg. customers in system' },
+            { key: 'Wq',  name: 'Wq', sub: 'avg. wait in queue (min)' },
+            { key: 'Ws',  name: 'Ws', sub: 'avg. time in system (min)' },
+            { key: 'Pw',  name: 'P(wait)', sub: 'prob. an arrival must queue (Erlang C)', pct: true },
+        ];
+
+        /** Theoretical values, or null when the M/M/S formulas don't apply. */
+        function theoryValues() {
+            const l = avgArrivalRatePerMin, m = avgServiceRatePerMinPerServer, S = numServers;
+            const rho = l / (S * m);
+            if (distributionType !== 'exponential' || !(rho < 1)) return null;
+            const Lq = calculateLq_theory(l, m, S), Wq = Lq / l;
+            const P0 = calculateP0(l, m, S);
+            const Pw = P0 * Math.pow(l / m, S) / (factorial(S) * (1 - rho));
+            return { rho, Lq, Ls: Lq + l / m, Wq, Ws: Wq + 1 / m, Pw };
+        }
+
+        function fmt(v, pct) {
+            if (v === null || v === undefined || !isFinite(v)) return '–';
+            return pct ? (v * 100).toFixed(1) + '%' : v.toFixed(3);
+        }
+
+        function updateComparison(est) {
+            const th = theoryValues();
+            const rhoNominal = avgArrivalRatePerMin / (numServers * avgServiceRatePerMinPerServer);
+            const rows = MEASURES.map(M => {
+                const t = th ? th[M.key] : null;
+                const sv = est[M.key];
+                const ci = bm[M.key].ci();
+                let diff = '–', verdict;
+                if (t !== null && sv !== null) {
+                    const d = (sv - t) / t * 100;
+                    diff = (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
                 }
+                if (t === null) {
+                    const why = distributionType !== 'exponential' ? 'Not M/M/S' : (rhoNominal >= 1 ? 'Unstable' : '—');
+                    verdict = `<span class="verdict v-na">${why}</span>`;
+                } else if (!ci) {
+                    verdict = `<span class="verdict v-wait">⏳ Collecting</span>`;
+                } else if (t >= ci.lo && t <= ci.hi) {
+                    verdict = `<span class="verdict v-ok">✓ Consistent</span>`;
+                } else {
+                    verdict = `<span class="verdict v-warn">⚠ Outside CI</span>`;
+                }
+                const ciTxt = ci ? (M.pct ? '± ' + (ci.half * 100).toFixed(1) + ' pts' : '± ' + ci.half.toFixed(3)) : '–';
+                const theoryTxt = t !== null ? fmt(t, M.pct) : (M.key === 'rho' ? fmt(rhoNominal, true) : (rhoNominal >= 1 && distributionType === 'exponential' ? '∞' : 'n/a'));
+                return `<tr data-key="${M.key}" class="${M.key === chartMeasure ? 'selected' : ''}">
+                    <td><span class="m-name">${M.name}</span><span class="m-sub">${M.sub}</span></td>
+                    <td class="theory">${theoryTxt}</td>
+                    <td class="sim">${fmt(sv, M.pct)}</td>
+                    <td class="ci">${ciTxt}</td>
+                    <td class="ci">${diff}</td>
+                    <td style="text-align:center">${verdict}</td></tr>`;
             });
+            document.getElementById('cmpBody').innerHTML = rows.join('');
+        }
 
-            const avgWait = completedCustomers.length > 0 ? (totalWait / completedCustomers.length) : 0;
-            avgWaitTimeDisplay.textContent = avgWait.toFixed(2);
+        // ---------- Convergence chart (plain canvas) ----------
+        let chartGeom = null;
+        function drawChart() {
+            const cv = document.getElementById('convChart');
+            const M = MEASURES.find(x => x.key === chartMeasure);
+            document.getElementById('chartTitle').textContent = `Convergence of ${M.name} over simulated time`;
+            const dpr = window.devicePixelRatio || 1;
+            const W = cv.clientWidth, H = cv.clientHeight;
+            if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+            const ctx = cv.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, W, H);
 
-            const avgSysTime = completedCustomers.length > 0 ? (totalTimeInSystem / completedCustomers.length) : 0;
-            avgTimeInSystemDisplay.textContent = avgSysTime.toFixed(2);
+            const pad = { l: 56, r: 92, t: 12, b: 32 };
+            const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+            const th = theoryValues(); const tv = th ? th[chartMeasure] : null;
+            const pts = history.filter(h => h[chartMeasure] !== null);
+            const ci = bm[chartMeasure].ci();
+            const scale = M.pct ? 100 : 1;
 
-            // Calculate and display average customers (Lq and L)
-            const avgCustomersInQueue = currentTime > 0 ? (totalCustomersInQueueArea / currentTime) : 0;
-            avgCustomersInQueueDisplay.textContent = avgCustomersInQueue.toFixed(2);
+            ctx.font = '12px Inter, sans-serif';
+            if (pts.length < 2) {
+                ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center';
+                ctx.fillText('Start or fast-forward the simulation to see convergence.', W / 2, H / 2);
+                chartGeom = null; return;
+            }
+            const tMax = Math.max(pts[pts.length - 1].t, 1e-9);
+            // y-range: ignore the noisy first 5% when sizing so early spikes don't flatten the chart
+            const settled = pts.filter(p => p.t >= 0.05 * tMax);
+            let yMax = Math.max(...(settled.length ? settled : pts).map(p => p[chartMeasure]));
+            if (tv !== null) yMax = Math.max(yMax, tv);
+            if (ci) yMax = Math.max(yMax, ci.hi);
+            yMax = yMax * 1.15 || 1;
+            const x = t => pad.l + (t / tMax) * pw;
+            const y = v => pad.t + ph - Math.min(v / yMax, 1.05) * ph;
 
-            const avgCustomersInSystem = currentTime > 0 ? (totalCustomersInSystemArea / currentTime) : 0;
-            avgCustomersInSystemDisplay.textContent = avgCustomersInSystem.toFixed(2);
+            // grid + y labels (recessive)
+            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.fillStyle = '#64748b'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+            for (let i = 0; i <= 4; i++) {
+                const v = yMax * i / 4, yy = y(v);
+                ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke();
+                ctx.fillText((v * scale).toFixed(M.pct ? 0 : 2) + (M.pct ? '%' : ''), pad.l - 8, yy);
+            }
+            // x labels
+            ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+            for (let i = 0; i <= 4; i++) { const t = tMax * i / 4; ctx.fillText(t.toFixed(t < 10 ? 1 : 0), x(t), pad.t + ph + 8); }
+            ctx.fillText('simulated minutes', pad.l + pw / 2, pad.t + ph + 20 > H - 12 ? H - 12 : pad.t + ph + 20);
 
-            // Calculate and display system utilization
-            const theoreticalMaxBusyTime = currentTime * numServers;
-            const actualUtilization = theoreticalMaxBusyTime > 0 ? (totalSystemBusyTime / theoreticalMaxBusyTime) : 0;
-            systemUtilizationDisplay.textContent = (Math.min(actualUtilization, 1) * 100).toFixed(2) + '%';
+            // theory reference line (dashed) + direct label
+            if (tv !== null) {
+                ctx.save(); ctx.setLineDash([6, 4]); ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(pad.l, y(tv)); ctx.lineTo(pad.l + pw, y(tv)); ctx.stroke(); ctx.restore();
+                ctx.fillStyle = '#334155'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                ctx.fillText('Theory ' + fmt(tv, M.pct), pad.l + pw + 8, y(tv));
+            }
+            // simulated running average
+            ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+            ctx.beginPath();
+            pts.forEach((p, i) => { const px = x(p.t), py = y(p[chartMeasure]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+            ctx.stroke();
+            // current CI as an error bar at the latest point
+            const last = pts[pts.length - 1], lx = x(last.t);
+            if (ci) {
+                ctx.strokeStyle = 'rgba(37,99,235,0.55)'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(lx, y(ci.lo)); ctx.lineTo(lx, y(ci.hi));
+                ctx.moveTo(lx - 5, y(ci.lo)); ctx.lineTo(lx + 5, y(ci.lo)); ctx.moveTo(lx - 5, y(ci.hi)); ctx.lineTo(lx + 5, y(ci.hi)); ctx.stroke();
+            }
+            ctx.fillStyle = '#2563eb'; ctx.beginPath(); ctx.arc(lx, y(last[chartMeasure]), 4, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            // direct label for the current simulated value (offset if it would collide with the theory label)
+            let ly = y(last[chartMeasure]);
+            if (tv !== null && Math.abs(ly - y(tv)) < 16) ly = ly < y(tv) ? y(tv) - 16 : y(tv) + 16;
+            ctx.fillStyle = '#1e293b'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = '600 12px Inter, sans-serif';
+            ctx.fillText('Sim ' + fmt(last[chartMeasure], M.pct), pad.l + pw + 8, ly);
 
-            // Calculate and display Observed Arrival Rate and Little's Law Check
-            const observedArrivalRate = currentTime > 0 ? (newCustomersArrivedCount / currentTime) : 0; // Use newCustomersArrivedCount for observed lambda
-            observedArrivalRateDisplay.textContent = observedArrivalRate.toFixed(2);
+            chartGeom = { pts, x, y, pad, pw, ph, M };
+        }
 
-            // NEW: Observed Service Rate
-            const avgServiceTimeObserved = completedCustomers.length > 0 ? (totalServiceTimeObserved / completedCustomers.length) : 0;
-            const observedServiceRate = avgServiceTimeObserved > 0 ? (1 / avgServiceTimeObserved) : 0;
-            observedServiceRateDisplay.textContent = observedServiceRate.toFixed(2);
-
-
-            const littlesLawCheckValue = observedArrivalRate * avgWait;
-            littlesLawCheckDisplay.textContent = littlesLawCheckValue.toFixed(2);
+        function chartHover(e) {
+            const tip = document.getElementById('chartTip');
+            if (!chartGeom) { tip.style.display = 'none'; return; }
+            const rect = e.currentTarget.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const { pts, x, y, M } = chartGeom;
+            if (mx < chartGeom.pad.l || mx > chartGeom.pad.l + chartGeom.pw) { tip.style.display = 'none'; drawChart(); return; }
+            let best = pts[0];
+            for (const p of pts) if (Math.abs(x(p.t) - mx) < Math.abs(x(best.t) - mx)) best = p;
+            drawChart();
+            const ctx = e.currentTarget.getContext('2d');
+            const bx = x(best.t), by = y(best[chartMeasure]);
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(bx, chartGeom.pad.t); ctx.lineTo(bx, chartGeom.pad.t + chartGeom.ph); ctx.stroke();
+            ctx.fillStyle = '#2563eb'; ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            const th = theoryValues(); const tv = th ? th[chartMeasure] : null;
+            tip.innerHTML = `t = ${best.t.toFixed(1)} min<br>${M.name}: <b>${fmt(best[chartMeasure], M.pct)}</b>` +
+                (tv !== null ? `<br>Theory: ${fmt(tv, M.pct)}` : '');
+            tip.style.left = bx + 'px'; tip.style.top = by + 'px'; tip.style.display = 'block';
         }
 
         // --- M/M/S Steady-State Formulas (Helper Functions) ---
@@ -1192,282 +1397,284 @@
             serversGroup.innerHTML = ''; // Clear any existing server visuals
 
             // Calculate total height needed for servers to center them vertically
-            const totalServersHeight = numServers * SERVER_RECT_HEIGHT + (numServers - 1) * SERVER_VERTICAL_GAP;
+            const totalServersHeight = numServers * serverHeight() + (numServers - 1) * serverGap();
             const serverGroupTopY = CENTER_LINE_Y - (totalServersHeight / 2);
 
             for (let i = 0; i < numServers; i++) {
                 servers.push({ busy: false, customer: null, busyStartTime: null });
                 drawServer(i);
             }
+            // Labels and queue line follow the layout
+            const lbl = document.getElementById('serversLabel');
+            lbl.setAttribute('x', SERVER_X_POS + SERVER_RECT_WIDTH / 2);
+            lbl.setAttribute('y', serverGroupTopY - 10);
+            const ql = document.getElementById('queueLine');
+            ql.setAttribute('x1', QUEUE_TAIL_MIN_X - CUSTOMER_RADIUS); ql.setAttribute('x2', QUEUE_FRONT_X + CUSTOMER_RADIUS);
+            ql.setAttribute('y1', QUEUE_LINE_Y_POS); ql.setAttribute('y2', QUEUE_LINE_Y_POS);
+            const qlab = document.getElementById('queueLabel');
+            qlab.setAttribute('x', (QUEUE_TAIL_MIN_X + QUEUE_FRONT_X) / 2); qlab.setAttribute('y', QUEUE_LINE_Y_POS + 28);
             // Verify servers are in DOM after drawing
             console.log(`Servers in DOM after initialize: ${serversGroup.children.length}`); // Added logging
         }
 
         /**
-         * Starts or resumes the simulation. Validates input parameters and schedules the first event.
+         * FIX: single place that copies the input fields into the simulation globals.
+         * Previously numServers / λ / μ were only read in startSimulation, so Reset and the
+         * input change handlers built the servers array with STALE values (e.g. change S from
+         * 1 to 2, reset, start -> the simulation still had 1 server while theory used 2).
          */
-        function startSimulation() {
-            // Read current values from input fields
+        function readParams() {
             avgArrivalRatePerMin = parseFloat(arrivalRateInput.value);
             avgServiceRatePerMinPerServer = parseFloat(serviceRateInput.value);
             numServers = parseInt(numServersInput.value);
             simSpeedMsPerSec = parseInt(simSpeedInput.value);
             maxCustomersToServe = parseInt(maxCustomersInput.value);
             noMaxCustomers = noMaxCustomersCheckbox.checked;
+            distributionType = distExpRadio.checked ? 'exponential' : 'fixed';
+        }
 
-            // Input validation
-            if (isNaN(avgArrivalRatePerMin) || avgArrivalRatePerMin <= 0 ||
+        function paramsValid() {
+            return !(isNaN(avgArrivalRatePerMin) || avgArrivalRatePerMin <= 0 ||
                 isNaN(avgServiceRatePerMinPerServer) || avgServiceRatePerMinPerServer <= 0 ||
                 isNaN(numServers) || numServers < 1 ||
                 isNaN(simSpeedMsPerSec) || simSpeedMsPerSec < 10 ||
-                (!noMaxCustomers && (isNaN(maxCustomersToServe) || maxCustomersToServe < 1))) {
-                statusMessageDisplay.textContent = "Please enter valid positive numbers for all parameters.";
-                statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
-                statusMessageDisplay.classList.add('bg-red-100', 'text-red-800');
-                return;
-            }
+                (!noMaxCustomers && (isNaN(maxCustomersToServe) || maxCustomersToServe < 1)));
+        }
 
-            // M/M/S stability condition (λ < S * μ) warning
-            if (distributionType === 'exponential' && avgArrivalRatePerMin >= (numServers * avgServiceRatePerMinPerServer)) {
-                statusMessageDisplay.textContent = "Warning: Arrival rate is >= total service rate. Queue will likely grow indefinitely (unstable M/M/S system).";
-                statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800');
-                statusMessageDisplay.classList.add('bg-orange-100', 'text-orange-800');
+        function setStatus(text, color) {
+            statusMessageDisplay.textContent = text;
+            statusMessageDisplay.className = `mt-6 p-3 rounded-lg text-sm bg-${color}-100 text-${color}-800`;
+        }
+
+        // Model inputs may not change mid-run (servers/events already reflect the old values)
+        function setModelInputsEnabled(enabled) {
+            [arrivalRateInput, serviceRateInput, numServersInput, distExpRadio, distFixedRadio]
+                .forEach(el => el.disabled = !enabled);
+        }
+
+        function ensureArrivalScheduled() {
+            if (eventQueue.some(e => e.type === 'ARRIVAL')) return;
+            if (!noMaxCustomers && newCustomersArrivedCount >= maxCustomersToServe) return;
+            customerCounter++;
+            const t = Distribution.generateTime(avgArrivalRatePerMin, distributionType);
+            scheduleEvent(currentTime + t, 'ARRIVAL', new Customer(customerCounter));
+        }
+
+        function startSimulation() {
+            // Only pacing / stopping rules may change on resume; λ, μ, S are fixed since the last reset.
+            simSpeedMsPerSec = parseInt(simSpeedInput.value);
+            maxCustomersToServe = parseInt(maxCustomersInput.value);
+            noMaxCustomers = noMaxCustomersCheckbox.checked;
+            if (!paramsValid()) { setStatus("Please enter valid positive numbers for all parameters.", 'red'); return; }
+
+            if (distributionType === 'exponential' && avgArrivalRatePerMin >= numServers * avgServiceRatePerMinPerServer) {
+                setStatus("Warning: Arrival rate is >= total service rate. Queue will grow indefinitely (unstable M/M/S system).", 'orange');
             } else {
-                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800');
-                statusMessageDisplay.textContent = "Simulation running...";
-                statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+                setStatus("Simulation running...", 'blue');
             }
 
-            // Disable Start, enable Stop, disable Reset while running
-            startButton.disabled = true;
-            stopButton.disabled = false;
-            resetButton.disabled = true;
-
-            // Clear any existing interval if START is pressed again while simulation is already active
-            if (simulationInterval) {
-                clearInterval(simulationInterval);
-            }
-
-            // Ensure the next ARRIVAL event is always scheduled if one is not already pending
-            // This handles the very first arrival from the stream, whether pre-filled or not.
-            const hasPendingArrival = eventQueue.some(event => event.type === 'ARRIVAL');
-            if (!hasPendingArrival) {
-                // Only increment customerCounter for a new customer being scheduled.
-                // If pre-filled, customerCounter already reflects pre-filled IDs.
-                // If starting empty, this is the very first customer (ID 1).
-                if (customerCounter === 0) { // Only increment if starting from 0 (empty system)
-                    customerCounter = 1; 
-                } else { // If pre-filled, ensure customerCounter is ready for the next ID
-                    customerCounter++;
-                }
-                const interArrivalTime = Distribution.generateTime(avgArrivalRatePerMin, distributionType);
-                scheduleEvent(currentTime + interArrivalTime, 'ARRIVAL', new Customer(customerCounter));
-            }
-            
-            // Set the interval for the simulation's discrete event steps
-            const intervalDuration = simSpeedMsPerSec * 60; // Convert ms/sim-second to ms/sim-minute
-            simulationInterval = setInterval(runNextEvent, intervalDuration);
+            startButton.disabled = true; stopButton.disabled = false; resetButton.disabled = true; ffButton.disabled = false;
+            setModelInputsEnabled(false);
+            if (simulationInterval) clearInterval(simulationInterval);
+            ensureArrivalScheduled();
+            // NOTE: one event is processed per tick, so this is an animation pace, not a true time scale.
+            simulationInterval = setInterval(runNextEvent, simSpeedMsPerSec * 60);
         }
 
-        /**
-         * Stops the simulation, clearing the interval.
-         */
-        function stopSimulation() {
+        function stopSimulation(message = "Simulation paused.") {
             clearInterval(simulationInterval);
-            simulationInterval = null; // Clear the interval ID
-            startButton.disabled = false;
-            stopButton.disabled = true;
-            resetButton.disabled = false; // Enable reset after stopping
-            statusMessageDisplay.textContent = "Simulation paused.";
-            statusMessageDisplay.classList.remove('bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
-            statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+            simulationInterval = null;
+            startButton.disabled = false; stopButton.disabled = true; resetButton.disabled = false; ffButton.disabled = false;
+            if (message) setStatus(message, 'blue');
         }
 
-        /**
-         * Resets the entire simulation state and UI to initial values.
-         */
-        function resetSimulation() {
-            console.log("Resetting simulation..."); // Added logging
-            stopSimulation(); // First, ensure the simulation is stopped
+        /** Samples the number in system N from the exact M/M/S stationary distribution. */
+        function sampleStationaryN(l, m, S) {
+            const a = l / m, rho = a / S, P0 = calculateP0(l, m, S);
+            const u = Math.random();
+            let cdf = 0;
+            for (let n = 0; n < 100000; n++) {
+                const pn = n < S ? P0 * Math.pow(a, n) / factorial(n)
+                                 : P0 * Math.pow(a, S) / factorial(S) * Math.pow(rho, n - S);
+                cdf += pn;
+                if (u < cdf) return n;
+            }
+            return 0;
+        }
 
-            // Reset all simulation state variables
+        function resetSimulation() {
+            stopSimulation(null);
+            readParams(); // FIX: always build the system from the CURRENT inputs
+
             currentTime = 0;
-            customerCounter = 0; // Reset customer counter for unique IDs
-            newCustomersArrivedCount = 0; // NEW: Reset new customers arrived count
+            customerCounter = 0;
+            newCustomersArrivedCount = 0;
             eventQueue = [];
             customersInQueue = [];
             servers = [];
             completedCustomers = [];
             totalSystemBusyTime = 0;
-            totalCustomersInQueueArea = 0; // Reset area
-            totalCustomersInSystemArea = 0; // Reset area
-            totalServiceTimeObserved = 0; // NEW: Reset observed service time
+            totalCustomersInQueueArea = 0;
+            totalCustomersInSystemArea = 0;
+            totalServiceTimeObserved = 0;
+            totalQueueWaitCompleted = 0;
+            totalSystemTimeCompleted = 0;
+            customersWaited = 0;
+            Object.values(bm).forEach(b => b.reset());
+            history = []; historyStep = 0.25; lastHistoryT = -Infinity;
 
-            // Remove all dynamic customer elements from the SVG canvas
-            const allCustomerElementsOnCanvas = simulationCanvas.querySelectorAll('.customer-circle, .customer-text');
-            allCustomerElementsOnCanvas.forEach(el => el.remove());
-            allCustomerObjects.clear(); // Clear the global map of customer objects
+            simulationCanvas.querySelectorAll('.customer-circle, .customer-text').forEach(el => el.remove());
+            allCustomerObjects.clear();
+            initializeServers(); // now uses the up-to-date numServers
 
-            // Re-initialize servers based on current numServers input value
-            initializeServers();
-
-            // Pre-fill system if checkbox is checked and system is stable
-            const preFillChecked = startWithPrefillCheckbox.checked;
-            const currentArrivalRate = parseFloat(arrivalRateInput.value);
-            const currentServiceRate = parseFloat(serviceRateInput.value);
-            const currentNumServers = parseInt(numServersInput.value);
-            const rho = currentArrivalRate / (currentNumServers * currentServiceRate);
-
-            if (preFillChecked && distributionType === 'exponential' && rho < 1) {
-                const theoreticalLs = calculateLs_theory(currentArrivalRate, currentServiceRate, currentNumServers);
-                const theoreticalLq = calculateLq_theory(currentArrivalRate, currentServiceRate, currentNumServers);
-
-                let numCustomersToPreFill = Math.round(theoreticalLs);
-                let numCustomersInQueueInitially = Math.round(theoreticalLq);
-
-                // Ensure queue count doesn't exceed total customers
-                if (numCustomersInQueueInitially > numCustomersToPreFill) {
-                    numCustomersInQueueInitially = numCustomersToPreFill;
+            if (!paramsValid()) {
+                setStatus("Please enter valid positive numbers for all parameters.", 'red');
+            } else if (distributionType === 'exponential'
+                       && avgArrivalRatePerMin < numServers * avgServiceRatePerMinPerServer) {
+                // FIX: draw the initial state from the exact stationary distribution instead of
+                // rounding Ls/Lq. Because service is exponential (memoryless), fresh service times
+                // for customers already in service are correct, so the run starts IN steady state.
+                const n = sampleStationaryN(avgArrivalRatePerMin, avgServiceRatePerMinPerServer, numServers);
+                const nServ = Math.min(n, numServers), nQ = n - nServ;
+                for (let i = 0; i < nServ; i++) {
+                    const c = new Customer(++customerCounter);
+                    c.arrivalTime = 0; c.serviceStartTime = 0;
+                    servers[i].busy = true; servers[i].customer = c; servers[i].busyStartTime = 0;
+                    scheduleEvent(Distribution.generateTime(avgServiceRatePerMinPerServer, distributionType), 'SERVICE_COMPLETION', c, i);
+                    createCustomerElements(c, CUSTOMER_AT_SERVER_X, calculateServerYCenter(i));
+                    c.element.classList.add('customer-in-service'); c.textElement.classList.add('customer-in-service');
                 }
-
-                let numCustomersInServiceInitially = Math.max(0, numCustomersToPreFill - numCustomersInQueueInitially);
-                
-                // Ensure we don't try to put more customers in service than available servers
-                numCustomersInServiceInitially = Math.min(numCustomersInServiceInitially, currentNumServers);
-
-                // Adjust queue size again based on actual service capacity
-                numCustomersInQueueInitially = Math.max(0, numCustomersToPreFill - numCustomersInServiceInitially);
-
-
-                // Pre-fill servers
-                for (let i = 0; i < numCustomersInServiceInitially; i++) {
-                    if (i < servers.length) { // Ensure server exists
-                        customerCounter++; // Increment global customer ID counter for pre-filled customer
-                        const customer = new Customer(customerCounter); // No arrivalTime in constructor
-                        customer.arrivalTime = 0; // Explicitly set to 0 for pre-filled customers
-                        servers[i].busy = true;
-                        servers[i].customer = customer;
-                        servers[i].busyStartTime = 0; // Started service at time 0
-                        customer.serviceStartTime = 0;
-
-                        const serviceTime = Distribution.generateTime(avgServiceRatePerMinPerServer, distributionType);
-                        scheduleEvent(serviceTime, 'SERVICE_COMPLETION', customer, i); // Schedule completion
-                        
-                        // Create and place customer visually immediately at server position
-                        createCustomerElements(customer, CUSTOMER_AT_SERVER_X, calculateServerYCenter(i));
-                        customer.element.classList.add('customer-in-service');
-                        customer.textElement.classList.add('customer-in-service');
-                    }
+                for (let i = 0; i < nQ; i++) {
+                    const c = new Customer(++customerCounter);
+                    c.arrivalTime = 0; c.queueEntryTime = 0;
+                    customersInQueue.push(c);
+                    createCustomerElements(c, queueX(i), QUEUE_CUSTOMER_Y_POS);
                 }
-
-                // Pre-fill queue
-                for (let i = 0; i < numCustomersInQueueInitially; i++) {
-                    customerCounter++; // Increment global customer ID counter for pre-filled customer
-                    const customer = new Customer(customerCounter); // No arrivalTime in constructor
-                    customer.arrivalTime = 0; // Explicitly set to 0 for pre-filled customers
-                    customersInQueue.push(customer);
-                    customer.queueEntryTime = 0; // Entered queue at time 0
-
-                    // Create and place customer visually immediately at queue position
-                    const customerX = QUEUE_FRONT_X - (customersInQueue.indexOf(customer) * QUEUE_SPACING_X);
-                    createCustomerElements(customer, customerX, QUEUE_CUSTOMER_Y_POS);
-                }
-
-                statusMessageDisplay.textContent = `System initialized with approx. ${numCustomersToPreFill} customers (approx. ${numCustomersInServiceInitially} in service, ${numCustomersInQueueInitially} in queue).`;
-                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800', 'bg-blue-100', 'text-blue-800');
-                statusMessageDisplay.classList.add('bg-green-100', 'text-green-800'); // Use green for successful pre-fill
+                setStatus(`Started in steady state: drew N = ${n} from the M/M/S distribution (${nServ} in service, ${nQ} in queue).`, 'green');
+            } else if (distributionType === 'exponential' && avgArrivalRatePerMin >= numServers * avgServiceRatePerMinPerServer) {
+                setStatus("Warning: Arrival rate is >= total service rate. Queue will grow indefinitely (unstable M/M/S system).", 'orange');
+            } else if (distributionType === 'fixed') {
+                setStatus("Fixed distribution selected (D/D/S) — the M/M/S formulas do not apply.", 'blue');
             } else {
-                // If not pre-filling or unstable, ensure customerCounter is reset to 0
-                // and the status message is correct. The first ARRIVAL will be scheduled by startSimulation.
-                customerCounter = 0; // Ensure it's 0 if no pre-fill
-                statusMessageDisplay.textContent = "Adjust parameters and click START.";
-                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
-                statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
+                setStatus("Adjust parameters and click START.", 'blue');
             }
 
-            // Update UI to reflect reset state (all zeros or pre-filled state)
-            updateMetrics();
-            updateVisualization(); // Ensure visualization is cleared and reset
-
-            // Reset status message and button states
-            startButton.disabled = false;
-            resetButton.disabled = false;
-            stopButton.disabled = true; // Stop button always disabled after reset
-
-            // Ensure Little's Law Checkbox state is reflected
-            littlesLawCheckMetricBox.style.display = showLittlesLawCheckbox.checked ? 'block' : 'none';
-            // NEW: Ensure Observed Rates Checkbox state is reflected
-            observedArrivalRateMetricBox.style.display = showObservedRatesCheckbox.checked ? 'block' : 'none';
-            observedServiceRateMetricBox.style.display = showObservedRatesCheckbox.checked ? 'block' : 'none';
-        }
-
-        /**
-         * Main simulation loop function.
-         * Processes the next event in the queue and updates the simulation state and UI.
-         */
-        function runNextEvent() {
-            // console.log(`runNextEvent called. Current time: ${currentTime.toFixed(2)}, EventQueue length: ${eventQueue.length}`); // Added logging
-            if (eventQueue.length === 0) {
-                // If there are no more events, stop the simulation
-                if (noMaxCustomers) {
-                    statusMessageDisplay.textContent = "No more events scheduled. Simulation might be idle or inputs led to no further activity.";
-                } else if (newCustomersArrivedCount >= maxCustomersToServe && completedCustomers.length >= newCustomersArrivedCount) { // Check if new customers limit reached AND all served
-                    statusMessageDisplay.textContent = `Simulation finished: ${completedCustomers.length} customers served (out of ${newCustomersArrivedCount} new arrivals).`;
-                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-orange-100', 'text-orange-800');
-                    statusMessageDisplay.classList.add('bg-green-100', 'text-green-800');
-                } else if (newCustomersArrivedCount >= maxCustomersToServe && customersInQueue.length === 0 && servers.every(s => !s.busy)) {
-                    // All new customers have arrived, and system is empty.
-                    statusMessageDisplay.textContent = `Simulation finished: All ${newCustomersArrivedCount} new customers have arrived and been served.`;
-                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-orange-100', 'text-orange-800');
-                    statusMessageDisplay.classList.add('bg-green-100', 'text-green-800');
-                }
-                else {
-                    // This else block indicates an unexpected stop if maxCustomersToServe wasn't reached.
-                    // It means no more events are scheduled, which could be due to a very low arrival rate
-                    // or an issue with event scheduling.
-                    statusMessageDisplay.textContent = "No more events. Simulation might be stuck or all new customers have arrived.";
-                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800');
-                    statusMessageDisplay.classList.add('bg-red-100', 'text-red-800');
-                }
-                stopSimulation();
-                return; // Exit the function
-            }
-
-            const nextEventTime = eventQueue[0].time;
-            const timePassed = nextEventTime - currentTime; // This is the duration since the last event processed
-
-            // Accumulate metrics for the interval just passed (from currentTime to nextEventTime)
-            // The system state (queue length, busy servers) remained constant during this 'timePassed' interval.
-            if (timePassed > 0) {
-                totalCustomersInQueueArea += customersInQueue.length * timePassed;
-                totalCustomersInSystemArea += (customersInQueue.length + servers.filter(s => s.busy).length) * timePassed;
-                
-                servers.forEach(server => {
-                    if (server.busy) {
-                        totalSystemBusyTime += timePassed;
-                    }
-                });
-            }
-
-            // Process the next event
-            const nextEvent = eventQueue.shift();
-            currentTime = nextEvent.time; // Advance simulation time
-
-            // console.log(`Processing event: Type=${nextEvent.type}, Customer ID=${nextEvent.customer ? nextEvent.customer.id : 'N/A'}, Server ID=${nextEvent.serverId}`); // Added logging
-
-            switch (nextEvent.type) {
-                case 'ARRIVAL':
-                    handleArrival(nextEvent.customer);
-                    break;
-                case 'SERVICE_COMPLETION':
-                    handleServiceCompletion(nextEvent.customer, nextEvent.serverId);
-                    break;
-            }
-            
-            // Now call updateMetrics to display the calculated values based on the accumulated totals
-            // and the current simulation time.
             updateMetrics();
             updateVisualization();
+            startButton.disabled = false; resetButton.disabled = false; stopButton.disabled = true; ffButton.disabled = false;
+            setModelInputsEnabled(true);
+        }
+
+        /** Adds dt worth of the current state to the time-weighted accumulators. */
+        function accumulate(dt) {
+            if (dt <= 0) return;
+            const busy = servers.filter(s => s.busy).length;
+            totalCustomersInQueueArea += customersInQueue.length * dt;
+            totalCustomersInSystemArea += (customersInQueue.length + busy) * dt;
+            totalSystemBusyTime += busy * dt;
+            bm.Lq.addTime(customersInQueue.length, dt);
+            bm.Ls.addTime(customersInQueue.length + busy, dt);
+            bm.rho.addTime(busy / servers.length, dt);
+        }
+
+        /** Current point estimates of every compared measure. */
+        function simEstimates() {
+            const n = completedCustomers.length, T = currentTime;
+            return {
+                rho: T > 0 ? totalSystemBusyTime / (T * servers.length) : null,
+                Lq: T > 0 ? totalCustomersInQueueArea / T : null,
+                Ls: T > 0 ? totalCustomersInSystemArea / T : null,
+                Wq: n > 0 ? totalQueueWaitCompleted / n : null,
+                Ws: n > 0 ? totalSystemTimeCompleted / n : null,
+                Pw: n > 0 ? customersWaited / n : null,
+            };
+        }
+
+        function recordHistory(force) {
+            if (!force && currentTime - lastHistoryT < historyStep) return;
+            history.push({ t: currentTime, ...simEstimates() });
+            lastHistoryT = currentTime;
+            if (history.length > 1500) { history = history.filter((_, i) => i % 2 === 0); historyStep *= 2; }
+        }
+
+        /** Processes exactly one event. Returns false if there is nothing to process. */
+        function processNextEvent() {
+            if (eventQueue.length === 0) return false;
+            accumulate(eventQueue[0].time - currentTime); // state was constant since the last event
+            const ev = eventQueue.shift();
+            currentTime = ev.time;
+            if (ev.type === 'ARRIVAL') handleArrival(ev.customer);
+            else handleServiceCompletion(ev.customer, ev.serverId);
+            recordHistory(false);
+            return true;
+        }
+
+        function finishedMessage() {
+            if (!noMaxCustomers && newCustomersArrivedCount >= maxCustomersToServe) {
+                return [`Simulation finished: ${completedCustomers.length} customers served (${newCustomersArrivedCount} new arrivals).`, 'green'];
+            }
+            return ["No more events scheduled.", 'red'];
+        }
+
+        function runNextEvent() {
+            if (!processNextEvent()) {
+                const [msg, color] = finishedMessage();
+                stopSimulation(null); setStatus(msg, color); setModelInputsEnabled(false);
+                return;
+            }
+            updateMetrics();
+            updateVisualization();
+        }
+
+        /** Runs the event loop for N simulated minutes with no animation, then redraws. */
+        function fastForward() {
+            // If the live simulation is running, pause the ticker, jump ahead, then resume animating.
+            const wasRunning = !!simulationInterval;
+            if (wasRunning) { clearInterval(simulationInterval); simulationInterval = null; }
+            if (!paramsValid()) { setStatus("Please enter valid positive numbers for all parameters.", 'red'); return; }
+            const mins = parseFloat(document.getElementById('ffMinutes').value);
+            if (isNaN(mins) || mins <= 0) return;
+            maxCustomersToServe = parseInt(maxCustomersInput.value);
+            noMaxCustomers = noMaxCustomersCheckbox.checked;
+            setModelInputsEnabled(false);
+
+            // Kill in-flight animations; the canvas is rebuilt from the logical state afterwards
+            simulationCanvas.querySelectorAll('.customer-circle, .customer-text').forEach(el => el.remove());
+            for (const c of allCustomerObjects.values()) { c.element = null; c.textElement = null; c.isVisualized = false; }
+
+            fastMode = true;
+            ensureArrivalScheduled();
+            const end = currentTime + mins;
+            let ran = true;
+            while (eventQueue.length && eventQueue[0].time <= end) processNextEvent();
+            if (eventQueue.length) { accumulate(end - currentTime); currentTime = end; recordHistory(true); } else ran = false;
+            fastMode = false;
+
+            // Keep only customers still in the system or waiting to arrive
+            const keep = new Map();
+            customersInQueue.forEach(c => keep.set(c.id, c));
+            servers.forEach(s => s.customer && keep.set(s.customer.id, s.customer));
+            eventQueue.forEach(e => e.customer && keep.set(e.customer.id, e.customer));
+            allCustomerObjects.clear();
+            keep.forEach((c, id) => allCustomerObjects.set(id, c));
+            servers.forEach((s, i) => {
+                if (!s.customer) return;
+                createCustomerElements(s.customer, CUSTOMER_AT_SERVER_X, calculateServerYCenter(i));
+                s.customer.element.classList.add('customer-in-service'); s.customer.textElement.classList.add('customer-in-service');
+            });
+            customersInQueue.forEach((c, i) => createCustomerElements(c, queueX(i), QUEUE_CUSTOMER_Y_POS));
+
+            updateMetrics();
+            updateVisualization();
+            if (ran && wasRunning) {
+                simulationInterval = setInterval(runNextEvent, simSpeedMsPerSec * 60);
+                setStatus(`Skipped ahead to t = ${currentTime.toFixed(1)} min (${completedCustomers.length} customers served). Still running — click FAST-FORWARD again to skip further.`, 'green');
+            } else if (ran) {
+                setStatus(`Fast-forwarded to t = ${currentTime.toFixed(1)} min (${completedCustomers.length} customers served). Press START to keep animating, FAST-FORWARD to skip again, or RESET to change parameters.`, 'green');
+            } else {
+                const [msg, color] = finishedMessage();
+                stopSimulation(null); setStatus(msg, color);
+            }
         }
 
         // --- Event Listeners and Initial Setup ---
@@ -1487,9 +1694,6 @@
             maxCustomersContainer = document.getElementById('maxCustomersContainer');
             distExpRadio = document.getElementById('distExp');
             distFixedRadio = document.getElementById('distFixed');
-            startWithPrefillCheckbox = document.getElementById('startWithPrefill'); // NEW
-            showLittlesLawCheckbox = document.getElementById('showLittlesLawCheck'); // NEW
-            showObservedRatesCheckbox = document.getElementById('showObservedRatesCheck'); // NEW
 
             startButton = document.getElementById('startButton');
             stopButton = document.getElementById('stopButton');
@@ -1505,13 +1709,6 @@
             avgCustomersInSystemDisplay = document.getElementById('avgCustomersInSystemDisplay');
             systemUtilizationDisplay = document.getElementById('systemUtilization');
             customersServedDisplay = document.getElementById('customersServed');
-            observedArrivalRateDisplay = document.getElementById('observedArrivalRate'); // NEW
-            observedServiceRateDisplay = document.getElementById('observedServiceRate'); // NEW
-            littlesLawCheckDisplay = document.getElementById('littlesLawCheck'); // NEW
-            littlesLawCheckMetricBox = document.getElementById('littlesLawCheckMetricBox'); // NEW
-            // Corrected the ID for observedServiceRateMetricBox
-            observedArrivalRateMetricBox = document.getElementById('observedArrivalRateMetricBox'); // NEW
-            observedServiceRateMetricBox = document.getElementById('observedServiceRateMetricBox'); // NEW // Corrected ID here
             statusMessageDisplay = document.getElementById('statusMessage');
 
             simulationCanvas = document.getElementById('simulationCanvas');
@@ -1519,33 +1716,25 @@
 
             // Attach event listeners to buttons
             startButton.addEventListener('click', startSimulation);
-            stopButton.addEventListener('click', stopSimulation);
+            stopButton.addEventListener('click', () => stopSimulation());
             resetButton.addEventListener('click', resetSimulation);
 
-            // Add change listeners for input fields to update status/visualization when not running
-            [arrivalRateInput, serviceRateInput, numServersInput].forEach(input => { // Removed startWithPrefillCheckbox from here
-                input.addEventListener('change', () => {
-                    // Only react to changes if simulation is not currently running
-                    if (!simulationInterval) {
-                        const currentArrivalRate = parseFloat(arrivalRateInput.value);
-                        const currentServiceRate = parseFloat(serviceRateInput.value);
-                        const currentNumServers = parseInt(numServersInput.value);
+            ffButton = document.getElementById('ffButton');
+            document.getElementById('cmpBody').addEventListener('click', e => {
+                const tr = e.target.closest('tr[data-key]'); if (!tr) return;
+                chartMeasure = tr.dataset.key; updateComparison(simEstimates()); drawChart();
+            });
+            const cv = document.getElementById('convChart');
+            cv.addEventListener('mousemove', chartHover);
+            cv.addEventListener('mouseleave', () => { document.getElementById('chartTip').style.display = 'none'; drawChart(); });
+            window.addEventListener('resize', drawChart);
+            ffButton.addEventListener('click', fastForward);
 
-                        // Re-evaluate and display stability warning if needed
-                        if (distributionType === 'exponential' && currentArrivalRate >= (currentNumServers * currentServiceRate)) {
-                            statusMessageDisplay.textContent = "Warning: Arrival rate is >= total service rate. Queue will likely grow indefinitely (unstable M/M/S system).";
-                            statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800');
-                            statusMessageDisplay.classList.add('bg-orange-100', 'text-orange-800');
-                        } else {
-                            statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800');
-                            statusMessageDisplay.textContent = "Adjust parameters and click START.";
-                            statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
-                        }
-                        // Re-initialize servers and update visualization if numServers changed and sim is not running
-                        initializeServers();
-                        updateVisualization();
-                    }
-                });
+            // FIX: any change to a model input rebuilds the system from the new values
+            // (previously it called initializeServers() with stale globals and could wipe
+            // busy servers in the middle of a paused run).
+            [arrivalRateInput, serviceRateInput, numServersInput].forEach(input => {
+                input.addEventListener('change', () => { if (!simulationInterval) resetSimulation(); });
             });
 
             // Handle the 'No Maximum Customers' checkbox
@@ -1558,49 +1747,8 @@
                 }
             });
 
-            // NEW: Handle the 'Start with Pre-filled System' checkbox separately
-            startWithPrefillCheckbox.addEventListener('change', () => {
-                // Trigger a reset to apply the pre-fill logic
-                resetSimulation();
-            });
-
-            // NEW: Handle the 'Show Little's Law Check' checkbox
-            showLittlesLawCheckbox.addEventListener('change', () => {
-                littlesLawCheckMetricBox.style.display = showLittlesLawCheckbox.checked ? 'block' : 'none';
-            });
-
-            // NEW: Handle the 'Show Observed Rates' checkbox
-            showObservedRatesCheckbox.addEventListener('change', () => {
-                const isChecked = showObservedRatesCheckbox.checked;
-                observedArrivalRateMetricBox.style.display = isChecked ? 'block' : 'none';
-                observedServiceRateMetricBox.style.display = isChecked ? 'block' : 'none';
-            });
-
-
-            // Handle changes in distribution type radio buttons
-            distExpRadio.addEventListener('change', (e) => {
-                distributionType = e.target.value;
-                const currentArrivalRate = parseFloat(arrivalRateInput.value);
-                const currentServiceRate = parseFloat(serviceRateInput.value);
-                const currentNumServers = parseInt(numServersInput.value);
-
-                // Update stability warning if exponential is selected
-                if (distributionType === 'exponential' && currentArrivalRate >= (currentNumServers * currentServiceRate)) {
-                    statusMessageDisplay.textContent = "Warning: Arrival rate is >= total service rate. Queue will likely grow indefinitely (unstable M/M/S system).";
-                    statusMessageDisplay.classList.remove('bg-blue-100', 'text-blue-800', 'bg-green-100', 'text-green-800');
-                    statusMessageDisplay.classList.add('bg-orange-100', 'text-orange-800');
-                } else {
-                    statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800');
-                    statusMessageDisplay.textContent = "Adjust parameters and click START.";
-                    statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
-                }
-            });
-            distFixedRadio.addEventListener('change', (e) => {
-                distributionType = e.target.value;
-                statusMessageDisplay.textContent = "Fixed distribution selected. Note: This deviates from a pure M/M/S model.";
-                statusMessageDisplay.classList.remove('bg-red-100', 'text-red-800', 'bg-orange-100', 'text-orange-800', 'bg-green-100', 'text-green-800');
-                statusMessageDisplay.classList.add('bg-blue-100', 'text-blue-800');
-            });
+            // Distribution change also requires a fresh run
+            [distExpRadio, distFixedRadio].forEach(r => r.addEventListener('change', () => resetSimulation()));
 
             // Initial setup for max customers input visibility based on default checkbox state
             noMaxCustomers = noMaxCustomersCheckbox.checked;
